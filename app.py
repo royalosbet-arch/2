@@ -1,86 +1,80 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
+import pandas as pd
 
-# --- НАЛАШТУВАННЯ СТОРІНКИ ---
-st.set_page_config(page_title="Звіт 1 аемб", layout="wide", page_icon="📊")
+# --- 1. НАЛАШТУВАННЯ ТА ПАРОЛЬ ---
+# Змініть цей пароль на свій
+USER_PASSWORD = "1234" 
 
-# --- СТИЛІЗАЦІЯ (Optional) ---
-st.markdown("""
-    <style>
-    .main {
-        background-color: #f5f5f5;
-    }
-    stMetric {
-        background-color: #ffffff;
-        padding: 15px;
-        border-radius: 10px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-    }
-    </style>
-    """, unsafe_allow_html=True)
+def check_password():
+    if "password_correct" not in st.session_state:
+        st.title("🔐 Доступ обмежено")
+        pwd = st.text_input("Введіть пароль для перегляду звіту:", type="password")
+        if st.button("Увійти"):
+            if pwd == USER_PASSWORD:
+                st.session_state["password_correct"] = True
+                st.rerun()
+            else:
+                st.error("❌ Невірний пароль")
+        return False
+    return True
 
-st.title("📊 Оперативний дашборд 1 аемб")
+if not check_password():
+    st.stop()
 
-# --- ПІДКЛЮЧЕННЯ ДО ТАБЛИЦІ ---
-# Використовує дані з Secrets (connections.gsheets)
+# --- 2. ВАША НОВА НАЗВА ТУТ ---
+st.set_page_config(page_title="Статистика 1 аемб", layout="wide", page_icon="📈")
+st.title("📈 Аналітична система: 1 аемб") # Змінюйте цей текст на будь-який інший
+
+# --- 3. ПІДКЛЮЧЕННЯ ---
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# --- СПИСОК ВСІХ ВАШИХ ВКЛАДОК ---
 tabs_to_show = [
-    "ЗГ",
-    "Ураження 11.2025",
-    "Ураження 12.2025",
-    "Ураження 01.2026",
-    "Ураження 02.2026",
-    "Ураження 03.2026",
-    "Ураження 04.2026",
-    "Розрахунки",
-    "Е-Бали",
-    "НРК",
-    "Мінування"
+    "Ураження 04.2026", "Ураження 03.2026", "Ураження 02.2026", 
+    "Ураження 01.2026", "Ураження 12.2025", "Ураження 11.2025",
+    "ЗГ", "Розрахунки", "Е-Бали", "НРК", "Мінування"
 ]
 
-# Вибір розділу в боковій панелі
-st.sidebar.header("Навігація")
-selected_tab = st.sidebar.selectbox("Оберіть розділ для перегляду:", tabs_to_show)
+selected_tab = st.sidebar.selectbox("Оберіть розділ:", tabs_to_show)
 
-# Кнопка оновлення в боковій панелі
-if st.sidebar.button('🔄 Оновити дані з таблиці'):
+if st.sidebar.button('🔄 Оновити дані'):
     st.cache_data.clear()
     st.rerun()
 
 try:
-    # Читання даних з обраного листа
-    # ttl=300 означає, що дані кешуються на 5 хвилин
     df = conn.read(worksheet=selected_tab, ttl=300)
-    
-    # Очистка: видаляємо повністю порожні рядки та колонки
     df = df.dropna(how='all').dropna(axis=1, how='all')
 
-    # ВІДОБРАЖЕННЯ ДАНИХ
-    st.subheader(f"📂 Розділ: {selected_tab}")
+    # --- 4. ГОЛОВНІ МЕТРИКИ (ВЕЛИКІ ЦИФРИ) ---
+    st.subheader(f"📊 Статистика: {selected_tab}")
     
-    # Виводимо таблицю
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Загальна к-сть записів", len(df))
+    
+    # Спроба знайти колонку з результатом (якщо вона є)
+    res_col = [c for c in df.columns if 'результат' in c.lower()]
+    if res_col:
+        hits = df[df[res_col[0]].astype(str).str.contains("уражен", case=False, na=False)].shape[0]
+        with col2:
+            st.metric("Уражено цілей", hits)
+
+    st.divider()
+
+    # --- 5. ГРАФІКИ ---
+    # Якщо в таблиці є колонка "Тип цілі", "Об'єкт" або "Результат" - малюємо графік
+    target_col = [c for c in df.columns if 'цілі' in c.lower() or 'об\'єкт' in c.lower() or 'тип' in c.lower()]
+    
+    if target_col:
+        st.subheader("📉 Розподіл по типах цілей")
+        chart_data = df[target_col[0]].value_counts()
+        st.bar_chart(chart_data)
+        st.divider()
+
+    # --- 6. ТАБЛИЦЯ ---
+    st.subheader("📝 Повний список")
     st.dataframe(df, use_container_width=True, hide_index=True)
 
-    # Додаткова статистика (якщо це вкладка з Ураженнями)
-    if "Ураження" in selected_tab:
-        st.divider()
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.info(f"Всього записів у цьому місяці: **{len(df)}**")
-        
-        # Якщо в таблиці є колонка 'Тип цілі' або подібна, можна вивести графік
-        # Наприклад:
-        # if 'Тип цілі' in df.columns:
-        #    st.bar_chart(df['Тип цілі'].value_counts())
-
 except Exception as e:
-    st.error(f"Помилка завантаження листа '{selected_tab}'")
-    st.warning("Переконайтеся, що назва вкладки в Google Таблиці в точності збігається з назвою в меню.")
-    st.expander("Технічні деталі помилки").write(e)
-
-# Підпис внизу
-st.sidebar.markdown("---")
-st.sidebar.caption("Дані захищені та підтягуються з приватної таблиці через Google API.")
+    st.error(f"Не вдалося завантажити вкладку '{selected_tab}'")
+    st.info("Перевірте, чи назва вкладки в Google Sheets збігається з кодом.")
