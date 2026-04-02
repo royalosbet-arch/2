@@ -7,7 +7,7 @@ import base64
 # --- 1. НАЛАШТУВАННЯ ТА ПАРОЛЬ ---
 st.set_page_config(page_title="СИТУАЦІЙНИЙ ЦЕНТР 1 аемб", layout="wide", page_icon="🛡️")
 
-USER_PASSWORD = "2887" # ВАШ ПАРОЛЬ
+USER_PASSWORD = "2887" 
 
 def check_password():
     if "password_correct" not in st.session_state:
@@ -82,24 +82,26 @@ if st.sidebar.button('🔄 ОНОВИТИ ДАНІ'):
     st.cache_data.clear()
     st.rerun()
 
-# --- 4. ВІДОБРАЖЕННЯ ДАНИХ ---
+# --- 4. ВІДОБРАЖЕННЯ ТА ОЧИСТКА ---
 try:
+    # Завантаження даних
     df = conn.read(worksheet=selected_tab, ttl=300).dropna(how='all', axis=0).fillna("")
+    
+    # --- ГЛОБАЛЬНА ОЧИСТКА ВІД "Unnamed" ---
+    df.columns = ["" if "Unnamed" in str(c) else c for c in df.columns]
 
     st.markdown(f"<h2 style='text-align:center; color:white;'>📊 {selected_tab}</h2>", unsafe_allow_html=True)
 
-    # --- СПЕЦІАЛЬНИЙ ГРАФІК ДЛЯ Е-БАЛІВ ---
     if selected_tab == "Е-Бали":
         try:
+            # Малюємо графік
             dates = df.iloc[:, 0]
             fig = go.Figure()
-            # Лютий
             fig.add_trace(go.Bar(
                 x=dates, y=df.iloc[:, 1],
                 name='Лютий', marker_color='#A5A5A5',
                 text=df.iloc[:, 1], textposition='outside'
             ))
-            # Березень
             fig.add_trace(go.Bar(
                 x=dates, y=df.iloc[:, 2],
                 name='Березень', marker_color='#92D050',
@@ -117,27 +119,26 @@ try:
             st.plotly_chart(fig, use_container_width=True)
             
             st.markdown("#### 📋 Таблиця показників")
-            st.dataframe(df.T, use_container_width=True)
+            
+            # Очистка індексу при транспонуванні (щоб прибрати Unnamed зліва)
+            df_t = df.T
+            df_t.index = ["" if "Unnamed" in str(i) else i for i in df_t.index]
+            
+            st.dataframe(df_t, use_container_width=True)
 
         except Exception as e:
-            st.info("Графік оновлюється...")
+            st.info("Таблиця оновлюється...")
             st.dataframe(df, use_container_width=True, hide_index=True)
 
     else:
-        # СТАНДАРТНИЙ ВИГЛЯД ДЛЯ ІНШИХ РОЗДІЛІВ (Мінування, Ураження тощо)
+        # Для інших розділів
         m1, m2 = st.columns(2)
         valid_rows = df[df.iloc[:, 0].astype(str).str.strip() != ""]
         m1.metric("ЗАПИСІВ У СЕКТОРІ", len(valid_rows))
         
         st.write("---")
-        # ПОВЕРНУВ ЕКСПАНДЕР (ВІДКРИТИ ТАБЛИЦЮ)
         with st.expander("📂 ВІДКРИТИ ПОВНУ ТАБЛИЦЮ", expanded=True):
-            search = st.text_input("Швидкий пошук:", placeholder="Введіть текст...")
-            if search:
-                df_display = df[df.apply(lambda r: r.astype(str).str.contains(search, case=False).any(), axis=1)]
-            else:
-                df_display = df
-            st.dataframe(df_display, use_container_width=True, hide_index=True)
+            st.dataframe(df, use_container_width=True, hide_index=True)
 
 except Exception as e:
-    st.error(f"Помилка завантаження розділу: {e}")
+    st.error(f"Помилка завантаження: {e}")
