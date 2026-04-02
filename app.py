@@ -8,7 +8,7 @@ import base64
 st.set_page_config(page_title="СИТУАЦІЙНИЙ ЦЕНТР 1 аемб", layout="wide", page_icon="🛡️")
 
 # --- 2. ПЕРЕВІРКА ПАРОЛЯ ---
-USER_PASSWORD = "1234" # ВАШ ПАРОЛЬ
+USER_PASSWORD = "2087" # ВАШ ПАРОЛЬ
 
 def check_password():
     if "password_correct" not in st.session_state:
