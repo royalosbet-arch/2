@@ -4,28 +4,9 @@ import pandas as pd
 import plotly.express as px
 import base64
 
-# --- 1. ПАРОЛЬ ТА КОНФІГУРАЦІЯ ---
-USER_PASSWORD = "1234" # Змініть на свій
-
-def check_password():
-    if "password_correct" not in st.session_state:
-        st.markdown("<h2 style='text-align: center;'>🔐 Вхід у систему 1 аемб</h2>", unsafe_allow_html=True)
-        pwd = st.text_input("Введіть пароль для доступу:", type="password")
-        if st.button("Увійти"):
-            if pwd == USER_PASSWORD:
-                st.session_state["password_correct"] = True
-                st.rerun()
-            else:
-                st.error("❌ Невірний пароль")
-        return False
-    return True
-
+# --- 1. НАЛАШТУВАННЯ ТА ФОН (ОБОВ'ЯЗКОВО ПЕРШИМИ) ---
 st.set_page_config(page_title="Ситуаційний Центр 1 аемб", layout="wide", page_icon="🛡️")
 
-if not check_password():
-    st.stop()
-
-# --- 2. ФУНКЦІЯ ДЛЯ ФОНУ ---
 def set_bg(bin_file):
     try:
         with open(bin_file, 'rb') as f:
@@ -38,20 +19,55 @@ def set_bg(bin_file):
             background-size: cover;
             background-attachment: fixed;
         }}
+        /* Стиль для вікна входу */
+        .stTextInput {{
+            max-width: 400px;
+            margin: 0 auto;
+            background: rgba(0,0,0,0.5);
+            padding: 20px;
+            border-radius: 15px;
+            border: 1px solid rgba(255,255,255,0.2);
+        }}
         [data-testid="stHeader"] {{ background: rgba(0,0,0,0); }}
         .stMetric {{ background: rgba(255, 255, 255, 0.05); padding: 15px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.1); }}
         .stDataFrame {{ background: rgba(0,0,0,0.7); border-radius: 10px; }}
-        /* Стиль для прибирання None у таблицях */
-        [data-testid="stTable"] td {{ color: transparent; }} 
         </style>
         '''
         st.markdown(page_bg_img, unsafe_allow_html=True)
     except:
         st.markdown("<style>.stApp { background-color: #0E1117; }</style>", unsafe_allow_html=True)
 
+# Вмикаємо фон ОДРАЗУ, щоб він був і на паролі
 set_bg('background.jpg')
 
-# --- 3. ПІДКЛЮЧЕННЯ ---
+# --- 2. ПЕРЕВІРКА ПАРОЛЯ ---
+USER_PASSWORD = "1234" # Замініть на свій
+
+def check_password():
+    if "password_correct" not in st.session_state:
+        # Робимо гарний відступ зверху
+        st.write("<br><br><br>", unsafe_allow_html=True)
+        col_l, col_c, col_r = st.columns([1, 2, 1]) # Центруємо вікно
+        
+        with col_c:
+            st.markdown("<h2 style='text-align: center; color: white; text-shadow: 2px 2px 4px #000;'>🛡️ СИТУАЦІЙНИЙ ЦЕНТР</h2>", unsafe_allow_html=True)
+            st.markdown("<p style='text-align: center; color: #ccc;'>Вхід тільки для авторизованого персоналу</p>", unsafe_allow_html=True)
+            
+            pwd = st.text_input("Введіть код доступу:", type="password")
+            
+            if st.button("УВІЙТИ В СИСТЕМУ"):
+                if pwd == USER_PASSWORD:
+                    st.session_state["password_correct"] = True
+                    st.rerun()
+                else:
+                    st.error("❌ Доступ відхилено. Невірний код.")
+        return False
+    return True
+
+if not check_password():
+    st.stop()
+
+# --- 3. ПІДКЛЮЧЕННЯ ТА НАВІГАЦІЯ ---
 st.title("🛡️ СИТУАЦІЙНИЙ ЦЕНТР: 1 аемб")
 conn = st.connection("gsheets", type=GSheetsConnection)
 
@@ -69,24 +85,20 @@ if st.sidebar.button('🔄 Оновити дані з Google'):
     st.cache_data.clear()
     st.rerun()
 
-# --- 4. ЗАВАНТАЖЕННЯ ТА ОЧИСТКА ---
+# --- 4. ОСНОВНА ЛОГІКА ТА ОЧИСТКА ВІД NONE ---
 try:
-    # Завантажуємо дані
     raw_df = conn.read(worksheet=selected_tab, ttl=300)
-    
-    # ПРИБИРАЄМО "NONE": замінюємо всі порожні значення на порожній рядок
     df = raw_df.dropna(how='all', axis=0).dropna(how='all', axis=1)
-    df = df.fillna("") # Ось цей рядок прибирає написи None
+    df = df.fillna("") # Прибираємо None
 
-    st.subheader(f"📂 Поточний розділ: {selected_tab}")
+    st.subheader(f"📂 Розділ: {selected_tab}")
 
-    # --- ГРАФІК ДЛЯ Е-БАЛИ ---
+    # --- СПЕЦІАЛЬНИЙ ГРАФІК ДЛЯ Е-БАЛИ ---
     if selected_tab == "Е-Бали":
         try:
             name_col = df.columns[0]
             val_col = [c for c in df.columns if 'разом' in c.lower() or 'сума' in c.lower()][0]
             
-            # Робимо копію для графіка, де перетворюємо текст назад у числа
             df_plot_data = df.copy()
             df_plot_data[val_col] = pd.to_numeric(df_plot_data[val_col], errors='coerce').fillna(0)
             df_plot = df_plot_data[df_plot_data[val_col] > 0].sort_values(by=val_col, ascending=True)
@@ -101,25 +113,11 @@ try:
             st.write("### 🏆 Рейтинг ефективності")
             st.plotly_chart(fig, use_container_width=True)
         except:
-            st.info("Графік буде доступний, коли з'являться дані в колонці 'РАЗОМ'.")
+            st.info("Графік буде доступний після заповнення таблиці.")
 
-    # --- АНАЛІТИКА ДЛЯ УРАЖЕНЬ ---
-    elif "Ураження" in selected_tab:
-        target_col = [c for c in df.columns if 'цілі' in c.lower() or 'тип' in c.lower()]
-        # Прибираємо порожні значення з аналітики цілей
-        if target_col and not df[target_col[0]].replace("", pd.NA).dropna().empty:
-            st.write("### 📈 Розподіл уражених цілей")
-            chart_data = df[df[target_col[0]] != ""][target_col[0]].value_counts()
-            st.bar_chart(chart_data)
-
-    # --- ВИВІД ТАБЛИЦІ ---
+    # --- ТАБЛИЦЯ ---
     st.divider()
-    st.metric("Всього записів у розділі", len(df[df.iloc[:, 0] != ""]))
-    
-    st.write("### 📄 Детальна таблиця")
-    # Використовуємо заміну для відображення: якщо клітинка порожня, ставимо прочерк або нічого
     st.dataframe(df, use_container_width=True, hide_index=True)
 
 except Exception as e:
     st.error(f"Помилка завантаження розділу '{selected_tab}'")
-    st.write(e)
