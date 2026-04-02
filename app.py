@@ -5,7 +5,7 @@ import plotly.express as px
 import base64
 
 # --- 1. НАЛАШТУВАННЯ ТА ПАРОЛЬ ---
-st.set_page_config(page_title="СИТУАЦІЙНИЙ ЦЕНТР 1 аемб", layout="wide", page_icon="🛡️")
+st.set_page_config(page_title="СИТУАЦІЙНИЙ ЦЕНТР 1 ОАЕМБ", layout="wide", page_icon="🛡️")
 
 USER_PASSWORD = "1234" # ВАШ ПАРОЛЬ
 
