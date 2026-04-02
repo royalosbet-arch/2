@@ -1,50 +1,86 @@
 import streamlit as st
-import pandas as pd
+from streamlit_gsheets import GSheetsConnection
 
-# Налаштування сторінки
-st.set_page_config(page_title="Звіт по БК та Ураженнях", layout="wide")
+# --- НАЛАШТУВАННЯ СТОРІНКИ ---
+st.set_page_config(page_title="Звіт 1 аемб", layout="wide", page_icon="📊")
 
-st.title("📊 Оперативний звіт")
-st.write("Дані оновлюються в режимі реального часу")
+# --- СТИЛІЗАЦІЯ (Optional) ---
+st.markdown("""
+    <style>
+    .main {
+        background-color: #f5f5f5;
+    }
+    stMetric {
+        background-color: #ffffff;
+        padding: 15px;
+        border-radius: 10px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
-# Функція для завантаження даних (замініть посилання на ваше)
-# Важливо: у Google Таблиці натисніть Файл -> Поділитися -> Опублікувати в інтернеті (як CSV)
-SHEET_URL = "ТУТ_БУДЕ_ВАШЕ_ПОСИЛАННЯ_НА_CSV"
+st.title("📊 Оперативний дашборд 1 аемб")
 
-@st.cache_data(ttl=60) # Оновлювати дані кожну хвилину
-def load_data():
-    return pd.read_csv(SHEET_URL)
+# --- ПІДКЛЮЧЕННЯ ДО ТАБЛИЦІ ---
+# Використовує дані з Secrets (connections.gsheets)
+conn = st.connection("gsheets", type=GSheetsConnection)
+
+# --- СПИСОК ВСІХ ВАШИХ ВКЛАДОК ---
+tabs_to_show = [
+    "ЗГ",
+    "Ураження 11.2025",
+    "Ураження 12.2025",
+    "Ураження 01.2026",
+    "Ураження 02.2026",
+    "Ураження 03.2026",
+    "Ураження 04.2026",
+    "Розрахунки",
+    "Е-Бали",
+    "НРК",
+    "Мінування"
+]
+
+# Вибір розділу в боковій панелі
+st.sidebar.header("Навігація")
+selected_tab = st.sidebar.selectbox("Оберіть розділ для перегляду:", tabs_to_show)
+
+# Кнопка оновлення в боковій панелі
+if st.sidebar.button('🔄 Оновити дані з таблиці'):
+    st.cache_data.clear()
+    st.rerun()
 
 try:
-    df = load_data()
-
-    # Створюємо колонки для головних показників
-    col1, col2, col3 = st.columns(3)
+    # Читання даних з обраного листа
+    # ttl=300 означає, що дані кешуються на 5 хвилин
+    df = conn.read(worksheet=selected_tab, ttl=300)
     
-    total_bk = df['Кількість_БК'].sum()
-    total_hits = df['Ураження'].sum()
+    # Очистка: видаляємо повністю порожні рядки та колонки
+    df = df.dropna(how='all').dropna(axis=1, how='all')
 
-    with col1:
-        st.metric(label="Загальна к-сть БК", value=total_bk)
+    # ВІДОБРАЖЕННЯ ДАНИХ
+    st.subheader(f"📂 Розділ: {selected_tab}")
     
-    with col2:
-        st.metric(label="Всього уражень", value=total_hits, delta=int(total_hits * 0.1)) # Приклад дельти
-    
-    with col3:
-        # Розрахунок ефективності
-        eff = round((total_hits / total_bk) * 100, 1) if total_bk > 0 else 0
-        st.metric(label="Ефективність", value=f"{eff}%")
+    # Виводимо таблицю
+    st.dataframe(df, use_container_width=True, hide_index=True)
 
-    st.divider()
-
-    # Візуалізація
-    st.subheader("Статистика по об'єктах")
-    st.bar_chart(data=df, x="Назва", y="Ураження")
-
-    # Таблиця внизу для деталей
-    with st.expander("Переглянути повну таблицю"):
-        st.dataframe(df, use_container_width=True)
+    # Додаткова статистика (якщо це вкладка з Ураженнями)
+    if "Ураження" in selected_tab:
+        st.divider()
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.info(f"Всього записів у цьому місяці: **{len(df)}**")
+        
+        # Якщо в таблиці є колонка 'Тип цілі' або подібна, можна вивести графік
+        # Наприклад:
+        # if 'Тип цілі' in df.columns:
+        #    st.bar_chart(df['Тип цілі'].value_counts())
 
 except Exception as e:
-    st.error("Будь ласка, перевірте підключення до таблиці або формат даних.")
-    st.info("Переконайтеся, що ви опублікували Google Таблицю як CSV.")
+    st.error(f"Помилка завантаження листа '{selected_tab}'")
+    st.warning("Переконайтеся, що назва вкладки в Google Таблиці в точності збігається з назвою в меню.")
+    st.expander("Технічні деталі помилки").write(e)
+
+# Підпис внизу
+st.sidebar.markdown("---")
+st.sidebar.caption("Дані захищені та підтягуються з приватної таблиці через Google API.")
