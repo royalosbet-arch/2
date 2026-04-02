@@ -41,7 +41,7 @@ def set_bg(bin_file):
 set_bg('background.jpg')
 
 # --- 2. ПЕРЕВІРКА ПАРОЛЯ ---
-USER_PASSWORD = "1234" # Замініть на свій
+USER_PASSWORD = "2887" # Замініть на свій
 
 def check_password():
     if "password_correct" not in st.session_state:
