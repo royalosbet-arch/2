@@ -4,9 +4,8 @@ import pandas as pd
 import plotly.express as px
 import base64
 
-# --- 1. НАЛАШТУВАННЯ ТА ПАРОЛЬ ---
-# Встановіть свій пароль тут
-USER_PASSWORD = "1234" 
+# --- 1. ПАРОЛЬ ТА КОНФІГУРАЦІЯ ---
+USER_PASSWORD = "1234" # Змініть на свій
 
 def check_password():
     if "password_correct" not in st.session_state:
@@ -21,13 +20,12 @@ def check_password():
         return False
     return True
 
-# Налаштування сторінки (має бути на самому початку)
 st.set_page_config(page_title="Ситуаційний Центр 1 аемб", layout="wide", page_icon="🛡️")
 
 if not check_password():
     st.stop()
 
-# --- 2. ФУНКЦІЯ ДЛЯ ФОНУ (background.jpg з вашого GitHub) ---
+# --- 2. ФУНКЦІЯ ДЛЯ ФОНУ ---
 def set_bg(bin_file):
     try:
         with open(bin_file, 'rb') as f:
@@ -43,20 +41,20 @@ def set_bg(bin_file):
         [data-testid="stHeader"] {{ background: rgba(0,0,0,0); }}
         .stMetric {{ background: rgba(255, 255, 255, 0.05); padding: 15px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.1); }}
         .stDataFrame {{ background: rgba(0,0,0,0.7); border-radius: 10px; }}
+        /* Стиль для прибирання None у таблицях */
+        [data-testid="stTable"] td {{ color: transparent; }} 
         </style>
         '''
         st.markdown(page_bg_img, unsafe_allow_html=True)
     except:
         st.markdown("<style>.stApp { background-color: #0E1117; }</style>", unsafe_allow_html=True)
 
-# Шукаємо файл background.jpg у вашому репозиторії
 set_bg('background.jpg')
 
-# --- 3. ПІДКЛЮЧЕННЯ ТА НАВІГАЦІЯ ---
+# --- 3. ПІДКЛЮЧЕННЯ ---
 st.title("🛡️ СИТУАЦІЙНИЙ ЦЕНТР: 1 аемб")
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# Список ваших вкладок (перевірте, щоб назви були 1-в-1 як у таблиці)
 tabs_to_show = [
     "Ураження 04.2026", "Ураження 03.2026", "Ураження 02.2026", 
     "Ураження 01.2026", "Ураження 12.2025", "Ураження 11.2025",
@@ -71,22 +69,27 @@ if st.sidebar.button('🔄 Оновити дані з Google'):
     st.cache_data.clear()
     st.rerun()
 
-# --- 4. ОСНОВНА ЛОГІКА ВІДОБРАЖЕННЯ ---
+# --- 4. ЗАВАНТАЖЕННЯ ТА ОЧИСТКА ---
 try:
-    # Завантаження даних (кеш на 5 хв)
-    df = conn.read(worksheet=selected_tab, ttl=300).dropna(how='all', axis=0)
+    # Завантажуємо дані
+    raw_df = conn.read(worksheet=selected_tab, ttl=300)
     
+    # ПРИБИРАЄМО "NONE": замінюємо всі порожні значення на порожній рядок
+    df = raw_df.dropna(how='all', axis=0).dropna(how='all', axis=1)
+    df = df.fillna("") # Ось цей рядок прибирає написи None
+
     st.subheader(f"📂 Поточний розділ: {selected_tab}")
 
-    # --- СПЕЦІАЛЬНИЙ ГРАФІК ДЛЯ Е-БАЛИ ---
+    # --- ГРАФІК ДЛЯ Е-БАЛИ ---
     if selected_tab == "Е-Бали":
         try:
-            name_col = df.columns[0] # Прізвище/Позивний
-            # Шукаємо колонку з підсумком (РАЗОМ або Сума)
+            name_col = df.columns[0]
             val_col = [c for c in df.columns if 'разом' in c.lower() or 'сума' in c.lower()][0]
             
-            df[val_col] = pd.to_numeric(df[val_col], errors='coerce').fillna(0)
-            df_plot = df[df[val_col] > 0].sort_values(by=val_col, ascending=True)
+            # Робимо копію для графіка, де перетворюємо текст назад у числа
+            df_plot_data = df.copy()
+            df_plot_data[val_col] = pd.to_numeric(df_plot_data[val_col], errors='coerce').fillna(0)
+            df_plot = df_plot_data[df_plot_data[val_col] > 0].sort_values(by=val_col, ascending=True)
 
             fig = px.bar(df_plot, x=val_col, y=name_col, orientation='h', 
                          text=val_col, color=val_col, color_continuous_scale='Reds')
@@ -95,27 +98,28 @@ try:
             fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', 
                               font_color="white", showlegend=False, height=500)
             
-            st.write("### 🏆 Рейтинг ефективності (Автоматичний графік)")
+            st.write("### 🏆 Рейтинг ефективності")
             st.plotly_chart(fig, use_container_width=True)
         except:
-            st.info("Для побудови графіка рейтингу потрібні колонки з прізвищем та підсумковою сумою.")
+            st.info("Графік буде доступний, коли з'являться дані в колонці 'РАЗОМ'.")
 
     # --- АНАЛІТИКА ДЛЯ УРАЖЕНЬ ---
     elif "Ураження" in selected_tab:
         target_col = [c for c in df.columns if 'цілі' in c.lower() or 'тип' in c.lower()]
-        if target_col:
+        # Прибираємо порожні значення з аналітики цілей
+        if target_col and not df[target_col[0]].replace("", pd.NA).dropna().empty:
             st.write("### 📈 Розподіл уражених цілей")
-            chart_data = df[target_col[0]].value_counts()
+            chart_data = df[df[target_col[0]] != ""][target_col[0]].value_counts()
             st.bar_chart(chart_data)
 
-    # --- ВИВІД МЕТРИК І ТАБЛИЦІ ---
+    # --- ВИВІД ТАБЛИЦІ ---
     st.divider()
-    c1, c2 = st.columns(2)
-    c1.metric("Всього записів у розділі", len(df))
+    st.metric("Всього записів у розділі", len(df[df.iloc[:, 0] != ""]))
     
     st.write("### 📄 Детальна таблиця")
+    # Використовуємо заміну для відображення: якщо клітинка порожня, ставимо прочерк або нічого
     st.dataframe(df, use_container_width=True, hide_index=True)
 
 except Exception as e:
     st.error(f"Помилка завантаження розділу '{selected_tab}'")
-    st.info("Перевірте, чи не змінили ви назву вкладки в самій Google Таблиці.")
+    st.write(e)
