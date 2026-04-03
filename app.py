@@ -173,7 +173,7 @@ try:
             f_m.update_layout(barmode='stack', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white", height=400, xaxis=dict(type='category', tickangle=-45))
             st.plotly_chart(f_m, use_container_width=True)
 
-    # --- УРАЖЕННЯ ---
+    # --- УРАЖЕННЯ (ДОДАНО НАКОПИЧУВАЛЬНИЙ ВИД) ---
     elif category == "🔥 Ураження":
         urazh_tabs = ["Ураження 04.2026", "Ураження 03.2026", "Ураження 02.2026", "Ураження 01.2026"]
         selected_tab = st.selectbox("Оберіть період уражень:", urazh_tabs)
@@ -193,7 +193,6 @@ try:
                 v_p = get_pts(q, target_name, status)
                 u_p = (q * POINTS_MAP.get(target_name, 0)) - v_p
                 
-                # Рахуємо верифіковану кількість штук для таблиці
                 v_q = 0
                 if "не верифіковано" in status.lower():
                     match = re.search(r'(\d+)', status.lower())
@@ -210,41 +209,51 @@ try:
             y, m = clean_rows[0]["Рік"], clean_rows[0]["Місяць"]
             num_days = pd.Period(f"{y}-{m}").days_in_month
             labs = [f"{d}.{str(m).zfill(2)}" for d in range(1, num_days + 1)]
-            v_v, u_v = {l: 0.0 for l in labs}, {l: 0.0 for l in labs}
             
-            obj_stats = {} # Для таблиці статистики
+            # Розрахунок денних балів
+            v_v, u_v = {l: 0.0 for l in labs}, {l: 0.0 for l in labs}
+            obj_stats = {} 
             for r in clean_rows:
                 l = f"{r['День']}.{str(m).zfill(2)}"
                 v_v[l] += r["V"]; u_v[l] += r["U"]
-                
-                # Агрегація для таблиці по цілях
                 name = r["Ціль"]
-                if name not in obj_stats: obj_stats[name] = [0, 0, 0] # Всього шт, Вериф шт, Бали
-                obj_stats[name][0] += r["Q_total"]
-                obj_stats[name][1] += r["Q_verif"]
-                obj_stats[name][2] += r["V"]
+                if name not in obj_stats: obj_stats[name] = [0, 0, 0]
+                obj_stats[name][0] += r["Q_total"]; obj_stats[name][1] += r["Q_verif"]; obj_stats[name][2] += r["V"]
 
             st.metric("ЗАГАЛЬНІ ВЕРИФІКОВАНІ БАЛИ:", f"{int(sum(v_v.values()))}")
             
-            # ГРАФІК УРАЖЕНЬ
-            f_u = go.Figure()
-            f_u.add_trace(go.Bar(x=labs, y=[v_v[l] for l in labs], name='Верифіковано', marker_color='#444444'))
-            f_u.add_trace(go.Bar(x=labs, y=[u_v[l] for l in labs], name='Не верифіковано', marker_color='#CC0000'))
-            f_u.add_trace(go.Scatter(x=labs, y=[v_v[l]+u_v[l] for l in labs], mode='text', text=[str(int(v_v[l])) if v_v[l]>0 else "" for l in labs], textposition='top center', showlegend=False, textfont=dict(color='white')))
-            f_u.update_layout(barmode='stack', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white", height=400, xaxis=dict(type='category', tickangle=-45))
-            st.plotly_chart(f_u, use_container_width=True)
+            # ПЕРЕМИКАЧ ВИДУ ГРАФІКА
+            tab_daily, tab_cum = st.tabs(["📉 Статистика по днях", "📈 Накопичувально за місяць"])
+            
+            with tab_daily:
+                f_u = go.Figure()
+                f_u.add_trace(go.Bar(x=labs, y=[v_v[l] for l in labs], name='Верифіковано', marker_color='#444444'))
+                f_u.add_trace(go.Bar(x=labs, y=[u_v[l] for l in labs], name='Не верифіковано', marker_color='#CC0000'))
+                f_u.add_trace(go.Scatter(x=labs, y=[v_v[l]+u_v[l] for l in labs], mode='text', text=[str(int(v_v[l])) if v_v[l]>0 else "" for l in labs], textposition='top center', showlegend=False, textfont=dict(color='white')))
+                f_u.update_layout(barmode='stack', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white", height=400, xaxis=dict(type='category', tickangle=-45))
+                st.plotly_chart(f_u, use_container_width=True)
 
-            # ТАБЛИЦЯ КЛАСИФІКАЦІЇ ЦІЛЕЙ (ПОВЕРНУТО)
+            with tab_cum:
+                # Розрахунок накопичувальних значень
+                cum_v = []; cum_u = []
+                curr_v = 0.0; curr_u = 0.0
+                for l in labs:
+                    curr_v += v_v[l]; curr_u += u_v[l]
+                    cum_v.append(curr_v); cum_u.append(curr_u)
+                
+                f_cum = go.Figure()
+                f_cum.add_trace(go.Bar(x=labs, y=cum_v, name='Верифіковано (разом)', marker_color='#444444'))
+                f_cum.add_trace(go.Bar(x=labs, y=cum_u, name='Не верифіковано (разом)', marker_color='#CC0000'))
+                f_cum.add_trace(go.Scatter(x=labs, y=[v + u for v, u in zip(cum_v, cum_u)], mode='text', text=[str(int(v)) if v > 0 else "" for v in cum_v], textposition='top center', showlegend=False, textfont=dict(color='white')))
+                f_cum.update_layout(barmode='stack', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white", height=400, xaxis=dict(type='category', tickangle=-45))
+                st.plotly_chart(f_cum, use_container_width=True)
+
+            # ТАБЛИЦЯ СТАТИСТИКИ
             st.markdown("---")
             st.markdown("#### 🎯 Детальна статистика уражень за типами цілей")
             table_data = []
             for name, vals in sorted(obj_stats.items(), key=lambda x: x[1][2], reverse=True):
-                table_data.append({
-                    "Тип цілі": name, 
-                    "Всього (шт)": int(vals[0]), 
-                    "Верифіковано (шт)": int(vals[1]), 
-                    "Бали": int(vals[2])
-                })
+                table_data.append({"Тип цілі": name, "Всього (шт)": int(vals[0]), "Верифіковано (шт)": int(vals[1]), "Бали": int(vals[2])})
             st.table(pd.DataFrame(table_data))
 
 except Exception as e:
