@@ -4,12 +4,10 @@ import pandas as pd
 import plotly.graph_objects as go
 import base64
 
-# --- 1. НАЛАШТУВАННЯ СТОРІНКИ ---
+# --- 1. НАЛАШТУВАННЯ ---
 st.set_page_config(page_title="СИТУАЦІЙНИЙ ЦЕНТР 1 аемб", layout="wide", page_icon="🛡️")
 
-# --- 2. ПЕРЕВІРКА ПАРОЛЯ ---
 USER_PASSWORD = "2887" 
-
 MONTHS_UKR = {
     1: "Січень", 2: "Лютий", 3: "Березень", 4: "Квітень", 5: "Травень", 6: "Червень",
     7: "Липень", 8: "Серпень", 9: "Вересень", 10: "Жовтень", 11: "Листопад", 12: "Грудень"
@@ -21,7 +19,7 @@ def check_password():
         st.write("<br><br><br>", unsafe_allow_html=True)
         col_l, col_c, col_r = st.columns([1, 2, 1])
         with col_c:
-            st.markdown("""<div style='background:rgba(255,255,255,0.05); padding:40px; border-radius:20px; border:1px solid rgba(255,255,255,0.1); text-align:center;'><h2 style='color:white; margin-bottom: 0;'>🛡️ СИТУАЦІЙНИЙ ЦЕНТР</h2><p style='color:#888;'>1 аемб. АВТОРИЗАЦІЯ</p></div>""", unsafe_allow_html=True)
+            st.markdown(" <div style='background:rgba(255,255,255,0.05); padding:40px; border-radius:20px; border:1px solid rgba(255,255,255,0.1); text-align:center;'><h2 style='color:white; margin-bottom: 0;'>🛡️ СИТУАЦІЙНИЙ ЦЕНТР</h2><p style='color:#888;'>1 аемб. АВТОРИЗАЦІЯ</p></div>", unsafe_allow_html=True)
             pwd = st.text_input("ВВЕДІТЬ КОД ДОСТУПУ:", type="password")
             if st.button("УВІЙТИ В СИСТЕМУ"):
                 if pwd == USER_PASSWORD:
@@ -33,129 +31,154 @@ def check_password():
 
 if not check_password(): st.stop()
 
-# --- 3. ДИЗАЙН ---
+# --- 2. ДИЗАЙН ---
 def set_design(bin_file):
     try:
         with open(bin_file, 'rb') as f: data = f.read()
         bin_str = base64.b64encode(data).decode()
         bg_css = f'background-image: url("data:image/png;base64,{bin_str}");'
     except: bg_css = 'background-color: #0E1117;'
-    st.markdown(f'<style>.stApp {{ {bg_css} background-size: cover; background-position: center; background-attachment: fixed; }} [data-testid="stMetric"] {{ background: rgba(0, 0, 0, 0.7) !important; border-left: 5px solid #ff4b4b !important; border-radius: 10px !important; padding: 20px !important; }} .stDataFrame {{ background: rgba(0,0,0,0.8); border-radius: 10px; }} [data-testid="stSidebar"] {{ background-color: rgba(14, 17, 23, 0.95); }}</style>', unsafe_allow_html=True)
+    st.markdown(f'<style>.stApp {{ {bg_css} background-size: cover; background-position: center; background-attachment: fixed; }} .stDataFrame {{ background: rgba(0,0,0,0.8); border-radius: 10px; }} [data-testid="stSidebar"] {{ background-color: rgba(14, 17, 23, 0.95); }}</style>', unsafe_allow_html=True)
 
 set_design('background.jpg')
 
-# --- 4. ПІДКЛЮЧЕННЯ ТА НАВІГАЦІЯ ---
+# --- 3. ПІДКЛЮЧЕННЯ ---
 conn = st.connection("gsheets", type=GSheetsConnection)
 st.sidebar.title("🛠️ НАВІГАЦІЯ")
 category = st.sidebar.radio("Оберіть напрямок:", ["⚔️ Бригадні звіти", "📈 Рейтинг та Бали", "🧨 Мінування", "🔥 Ураження", "📡 Спец. розділи"])
 
+# Навігація
 selected_tab = ""
 if category == "⚔️ Бригадні звіти": selected_tab = st.sidebar.selectbox("Розділ:", ["Бригадний ЗГ", "Бригадний"])
 elif category == "📈 Рейтинг та Бали": selected_tab = st.sidebar.selectbox("Розділ:", ["Е-Бали", "Розрахунки"])
 elif category == "🧨 Мінування": selected_tab = "Мінування"
 elif category == "🔥 Ураження":
     months = ["04.2026", "03.2026", "02.2026", "01.2026", "12.2025", "11.2025"]
-    m_sel = st.sidebar.selectbox("Місяць:", months)
-    selected_tab = f"Ураження {m_sel}"
-elif category == "📡 Спец. розділи": selected_tab = st.sidebar.selectbox("Розділ:", ["ЗГ", "НРК"])
+    selected_tab = f"Ураження {st.sidebar.selectbox('Місяць:', months)}"
+else: selected_tab = st.sidebar.selectbox("Розділ:", ["ЗГ", "НРК"])
 
 if st.sidebar.button('🔄 ОНОВИТИ ДАНІ'):
     st.cache_data.clear()
     st.rerun()
 
-# --- 5. ВІДОБРАЖЕННЯ ДАНИХ ---
+# --- 4. ФУНКЦІЯ ОЧИСТКИ ЧИСЕЛ ---
+def to_native(val):
+    """Перетворює будь-яке число в чистий Python float/int"""
+    try:
+        f_val = float(val)
+        return int(f_val) if f_val == int(f_val) else f_val
+    except: return 0
+
+# --- 5. ВІДОБРАЖЕННЯ ---
 try:
-    raw_df = conn.read(worksheet=selected_tab, ttl=300, header=None).fillna("")
+    df = conn.read(worksheet=selected_tab, ttl=300, header=None).fillna("")
     st.markdown(f"<h2 style='text-align:center; color:white;'>📊 {selected_tab}</h2>", unsafe_allow_html=True)
 
     if selected_tab == "Мінування":
-        df_m = raw_df.copy()
-        df_m.columns = [str(c).strip() for c in df_m.iloc[0]]
-        df_m = df_m.iloc[1:].reset_index(drop=True)
+        # Перетворюємо в список списків (PURE PYTHON)
+        data_list = df.values.tolist()
+        headers = data_list[0]
+        rows = data_list[1:]
         
-        # Перетворення дат та кількості
-        df_m['Дата_dt'] = pd.to_datetime(df_m['Дата'], dayfirst=True, errors='coerce')
-        df_m['Кількість_val'] = pd.to_numeric(df_m['Кількість'], errors='coerce').fillna(0)
-        
-        # Відсікаємо порожні або підсумкові рядки
-        df_clean = df_m[df_m['Дата_dt'].notnull()].copy()
-        
-        if not df_clean.empty:
-            df_clean['Year'] = df_clean['Дата_dt'].dt.year
-            df_clean['Month'] = df_clean['Дата_dt'].dt.month
-            df_clean['Day_Label'] = df_clean['Дата_dt'].dt.strftime('%d.%m')
-            df_clean['Month_Label'] = df_clean['Month'].map(MONTHS_UKR) + " " + df_clean['Year'].astype(str)
-            df_clean['Sort_Key'] = df_clean['Year'] * 100 + df_clean['Month']
+        # Ручна фільтрація та перетворення
+        clean_rows = []
+        for r in rows:
+            date_raw = str(r[0])
+            # Спроба розпізнати дату
+            try: 
+                dt = pd.to_datetime(date_raw, dayfirst=True, errors='coerce')
+                if pd.notnull(dt):
+                    # Створюємо словник рядка з чистими типами
+                    clean_rows.append({
+                        "Дата_dt": dt,
+                        "Дата_str": dt.strftime('%d.%m'),
+                        "Місяць_Рік": MONTHS_UKR.get(dt.month, "Невідомо") + " " + str(dt.year),
+                        "Сорт": dt.year * 100 + dt.month,
+                        "Кількість": to_native(r[2]),
+                        "БК": str(r[1]),
+                        "Верифікація": str(r[3])
+                    })
+            except: continue
 
-            # ГРАФІК 1
-            st.markdown("### 📅 Щоденна робота")
-            m_opts = df_clean[['Month_Label', 'Sort_Key']].drop_duplicates().sort_values('Sort_Key', ascending=False)
-            sel_m = st.selectbox("Оберіть місяць:", m_opts['Month_Label'].tolist())
+        if clean_rows:
+            # Графік 1: По днях
+            all_months = sorted(list(set([r["Місяць_Рік"] for r in clean_rows])), reverse=True)
+            sel_m = st.selectbox("Оберіть місяць:", all_months)
             
-            p_df = df_clean[df_clean['Month_Label'] == sel_m].sort_values('Дата_dt')
-            daily = p_df.groupby('Day_Label')['Кількість_val'].sum().reset_index()
-
+            m_data = [r for r in clean_rows if r["Місяць_Рік"] == sel_m]
+            m_data.sort(key=lambda x: x["Дата_dt"])
+            
+            # Групуємо по днях вручну
+            days = {}
+            for r in m_data:
+                d = r["Дата_str"]
+                days[d] = days.get(d, 0) + r["Кількість"]
+            
             fig1 = go.Figure(go.Bar(
-                x=daily['Day_Label'].tolist(), 
-                y=[float(x) for x in daily['Кількість_val']], 
-                marker_color='#ED7D31', 
-                text=[str(int(x)) if x == int(x) else str(x) for x in daily['Кількість_val']], 
-                textposition='outside'
+                x=list(days.keys()), 
+                y=[float(v) for v in days.values()], 
+                marker_color='#ED7D31', text=[str(v) for v in days.values()], textposition='outside'
             ))
-            fig1.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white", height=400)
+            fig1.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white")
             st.plotly_chart(fig1, use_container_width=True)
 
-            # ГРАФІК 2
-            st.markdown("### 📈 Всього за місяць")
-            overall = df_clean.groupby(['Sort_Key', 'Month_Label'])['Кількість_val'].sum().reset_index().sort_values('Sort_Key')
-            fig2 = go.Figure(go.Bar(
-                x=overall['Month_Label'].tolist(), 
-                y=[float(x) for x in overall['Кількість_val']], 
-                marker_color='#FF8C00', 
-                text=[str(int(x)) for x in overall['Кількість_val']], 
-                textposition='outside'
-            ))
-            fig2.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white", height=400)
-            st.plotly_chart(fig2, use_container_width=True)
+            # Графік 2: По місяцях
+            month_totals = {}
+            sort_map = {}
+            for r in clean_rows:
+                m = r["Місяць_Рік"]
+                month_totals[m] = month_totals.get(m, 0) + r["Кількість"]
+                sort_map[m] = r["Сорт"]
             
+            sorted_m = sorted(month_totals.keys(), key=lambda x: sort_map[x])
+            
+            fig2 = go.Figure(go.Bar(
+                x=sorted_m, 
+                y=[float(month_totals[m]) for m in sorted_m], 
+                marker_color='#FF8C00', text=[str(month_totals[m]) for m in sorted_m], textposition='outside'
+            ))
+            fig2.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white")
+            st.plotly_chart(fig2, use_container_width=True)
+
             with st.expander("📂 ПЕРЕГЛЯНУТИ ТАБЛИЦЮ"):
-                target_cols = ['Дата', 'БК', 'Кількість', 'Верифікація']
-                valid_cols = [c for c in target_cols if c in df_m.columns]
-                # Максимально безпечний вивід таблиці (все як текст)
-                st.dataframe(df_m[valid_cols].applymap(str), use_container_width=True, hide_index=True)
+                # Створюємо просту таблицю без індексів Pandas
+                simple_df = pd.DataFrame([{ "Дата": r["Дата_str"], "БК": r["БК"], "Кількість": r["Кількість"], "Верифікація": r["Верифікація"] } for r in clean_rows])
+                st.write(simple_df.astype(str))
         else:
-            st.warning("Дані для аналізу не знайдені. Перевірте формат дат у колонці 'Дата'.")
+            st.warning("Перевірте формат дат у стовпчику 'Дата'.")
 
     elif selected_tab == "Бригадний ЗГ":
-        sub = [str(x) for x in raw_df.iloc[1].values]
-        data = raw_df.iloc[2:][raw_df.iloc[2:, 0] != ""]
-        def bc(d, t, s_col):
+        sub = [str(x) for x in df.iloc[1].values]
+        d_rows = df.iloc[2:].values.tolist()
+        def bc(title, start_c):
             f = go.Figure()
             clrs = {'1 аемб': '#92D050', '2 аемб': '#A5A5A5', '3 аемб': '#4472C4', '4 аемб': '#ED7D31'}
             for u, c in clrs.items():
-                idx = [i for i, x in enumerate(sub) if u in x and i >= s_col and i < s_col+6]
+                idx = [i for i, x in enumerate(sub) if u in x and i >= start_c and i < start_c+6]
                 if idx:
-                    vals = pd.to_numeric(d.iloc[:, idx[0]], errors='coerce').fillna(0).tolist()
-                    f.add_trace(go.Bar(x=d.iloc[:, 0].tolist(), y=[float(v) for v in vals], name=u, marker_color=c, text=[str(v) for v in vals], textposition='outside'))
-            f.update_layout(title=t, barmode='group', paper_bgcolor='rgba(0,0,0,0)', font_color="white", height=400)
+                    v = [to_native(r[idx[0]]) for r in d_rows if r[0] != ""]
+                    x_axis = [str(r[0]) for r in d_rows if r[0] != ""]
+                    f.add_trace(go.Bar(x=x_axis, y=[float(val) for val in v], name=u, marker_color=c, text=[str(val) for val in v], textposition='outside'))
+            f.update_layout(title=title, barmode='group', paper_bgcolor='rgba(0,0,0,0)', font_color="white", height=400)
             return f
-        st.plotly_chart(bc(data, "🏆 ЗАГАЛЬНИЙ РЕЗУЛЬТАТ", 0), use_container_width=True)
-        st.plotly_chart(bc(data, "🔥 УРАЖЕННЯ", 6), use_container_width=True)
-        st.plotly_chart(bc(data, "🧨 МІНУВАННЯ", 12), use_container_width=True)
+        st.plotly_chart(bc("🏆 ЗАГАЛЬНИЙ РЕЗУЛЬТАТ", 0), use_container_width=True)
+        st.plotly_chart(bc("🔥 УРАЖЕННЯ", 6), use_container_width=True)
+        st.plotly_chart(bc("🧨 МІНУВАННЯ", 12), use_container_width=True)
 
     elif selected_tab == "Е-Бали":
-        dates = raw_df.iloc[1:, 0].tolist()
-        v1 = pd.to_numeric(raw_df.iloc[1:, 1], errors='coerce').fillna(0).tolist()
-        v2 = pd.to_numeric(raw_df.iloc[1:, 2], errors='coerce').fillna(0).tolist()
+        d_list = df.values.tolist()[1:]
+        dates = [str(r[0]) for r in d_list]
+        v1 = [to_native(r[1]) for r in d_list]
+        v2 = [to_native(r[2]) for r in d_list]
         f = go.Figure()
         f.add_trace(go.Bar(x=dates, y=[float(x) for x in v1], name='Попередній', marker_color='#A5A5A5', text=[str(x) for x in v1], textposition='outside'))
         f.add_trace(go.Bar(x=dates, y=[float(x) for x in v2], name='Поточний', marker_color='#92D050', text=[str(x) for x in v2], textposition='outside'))
         f.update_layout(barmode='group', paper_bgcolor='rgba(0,0,0,0)', font_color="white", height=500)
         st.plotly_chart(f, use_container_width=True)
-        st.dataframe(raw_df.iloc[1:].T.applymap(str), use_container_width=True)
+        st.write(df.iloc[1:].T.astype(str))
 
     else:
-        st.dataframe(raw_df.iloc[1:].applymap(str), use_container_width=True, hide_index=True)
+        st.write(df.iloc[1:].astype(str))
 
 except Exception as e:
-    st.error(f"Помилка системи: {e}")
+    st.error(f"Помилка завантаження: {e}")
