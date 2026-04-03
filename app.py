@@ -57,7 +57,7 @@ def check_password():
 
 if not check_password(): st.stop()
 
-# --- 3. ДИЗАЙН САЙТУ ---
+# --- 3. ДИЗАЙН ---
 def set_design(bin_file):
     try:
         with open(bin_file, 'rb') as f: data = f.read()
@@ -71,16 +71,24 @@ set_design('background.jpg')
 # --- 4. ПІДКЛЮЧЕННЯ ТА НАВІГАЦІЯ ---
 conn = st.connection("gsheets", type=GSheetsConnection)
 st.sidebar.markdown("### 🛠️ УПРАВЛІННЯ")
-category = st.sidebar.radio("Напрямок:", ["⚔️ Бригадні звіти", "📈 Рейтинг та Бали", "🧨 Мінування", "🔥 Ураження", "📡 Спец. розділи"])
+category = st.sidebar.radio("Оберіть напрямок:", ["⚔️ Бригадні звіти", "📈 Рейтинг та Бали", "🧨 Мінування", "🔥 Ураження", "📡 Спец. розділи"])
 
 selected_tab = ""
-if category == "⚔️ Бригадні звіти": selected_tab = st.sidebar.selectbox("Розділ:", ["Бригадний ЗГ", "Бригадний"])
-elif category == "📈 Рейтинг та Бали": selected_tab = st.sidebar.selectbox("Розділ:", ["Е-Бали", "Розрахунки"])
-elif category == "🧨 Мінування": selected_tab = "Мінування"
+
+# Логіка вибору вкладки
+if category == "⚔️ Бригадні звіти":
+    selected_tab = st.sidebar.selectbox("Оберіть розділ:", ["Бригадний ЗГ", "Бригадний"])
+elif category == "📈 Рейтинг та Бали":
+    selected_tab = st.sidebar.selectbox("Оберіть розділ:", ["Е-Бали", "Розрахунки"])
+elif category == "🧨 Мінування":
+    selected_tab = "Мінування"
 elif category == "🔥 Ураження":
-    months = ["03.2026", "04.2026", "02.2026", "01.2026", "12.2025"]
-    selected_tab = f"Ураження {st.sidebar.selectbox('Період:', months)}"
-else: selected_tab = st.sidebar.selectbox("Розділ:", ["ЗГ", "НРК"])
+    # Список місяців (вкладок у Google Sheets)
+    urazh_months = ["03.2026", "04.2026", "02.2026", "01.2026", "12.2025"]
+    selected_month = st.sidebar.selectbox("Оберіть місяць уражень:", urazh_months)
+    selected_tab = f"Ураження {selected_month}"
+else:
+    selected_tab = st.sidebar.selectbox("Оберіть розділ:", ["ЗГ", "НРК"])
 
 if st.sidebar.button('🔄 ОНОВИТИ ДАНІ'):
     st.cache_data.clear()
@@ -117,7 +125,9 @@ try:
             if last_date and target_name != "" and qty > 0:
                 unit_price = POINTS_MAP.get(target_name, 0)
                 total_pts = qty * unit_price
-                # Логіка для "не верифіковано X"
+                
+                # Логіка верифікації балів
+                v_p, u_p = 0.0, 0.0
                 if "не верифіковано" in status.lower():
                     match = re.search(r'(\d+)', status)
                     unv_qty = float(match.group(1)) if match else qty
@@ -125,11 +135,13 @@ try:
                     v_p = max(0.0, total_pts - u_p)
                 else:
                     v_p, u_p = get_verif_data(total_pts, status)
+                
                 clean_rows.append({"Дата_dt": last_date, "День": last_date.day, "Місяць": last_date.month, "Рік": last_date.year, "V": v_p, "U": u_p})
 
         if clean_rows:
             y, m = clean_rows[0]["Рік"], clean_rows[0]["Місяць"]
-            labels = [f"{d}.{str(m).zfill(2)}" for d in range(1, pd.Period(f"{y}-{m}").days_in_month + 1)]
+            num_days = pd.Period(f"{y}-{m}").days_in_month
+            labels = [f"{d}.{str(m).zfill(2)}" for d in range(1, num_days + 1)]
             v_vals = {l: 0.0 for l in labels}; u_vals = {l: 0.0 for l in labels}
             for r in clean_rows:
                 l = f"{r['День']}.{str(m).zfill(2)}"
@@ -144,7 +156,8 @@ try:
             fig.add_trace(go.Scatter(x=labels, y=[v_vals[l]+u_vals[l] for l in labels], mode='text', text=[str(int(v_vals[l])) if v_vals[l]>0 else "" for l in labels], textposition='top center', showlegend=False, textfont=dict(color='white', size=13)))
             fig.update_layout(barmode='stack', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white", xaxis=dict(type='category', tickangle=-45))
             st.plotly_chart(fig, use_container_width=True)
-            with st.expander("📂 ЖУРНАЛ УРАЖЕНЬ"): st.dataframe(df.iloc[1:, :4], use_container_width=True, hide_index=True)
+            with st.expander("📂 ЖУРНАЛ УРАЖЕНЬ"):
+                st.dataframe(df.iloc[1:, :4], use_container_width=True, hide_index=True)
 
     # --- МІНУВАННЯ ---
     elif selected_tab == "Мінування":
@@ -160,10 +173,11 @@ try:
             except: continue
         if clean_rows:
             m_opts = sorted(list(set([(r["Місяць_Рік"], r["S"]) for r in clean_rows])), key=lambda x: x[1], reverse=True)
-            sel_m = st.selectbox("Період:", [x[0] for x in m_opts])
+            sel_m = st.selectbox("Період перегляду:", [x[0] for x in m_opts])
             m_data = [r for r in clean_rows if r["Місяць_Рік"] == sel_m]
             y, m = m_data[0]["Рік"], m_data[0]["Місяць"]
-            labels = [f"{d}.{str(m).zfill(2)}" for d in range(1, pd.Period(f"{y}-{m}").days_in_month + 1)]
+            num_days = pd.Period(f"{y}-{m}").days_in_month
+            labels = [f"{d}.{str(m).zfill(2)}" for d in range(1, num_days + 1)]
             v_v, u_v = {l: 0.0 for l in labels}, {l: 0.0 for l in labels}
             for r in m_data:
                 l = f"{r['День']}.{str(m).zfill(2)}"
@@ -178,7 +192,8 @@ try:
             fig1.add_trace(go.Scatter(x=labels, y=[v_v[l]+u_v[l] for l in labels], mode='text', text=[str(int(v_v[l])) if v_v[l]>0 else "" for l in labels], textposition='top center', showlegend=False, textfont=dict(color='white', size=13)))
             fig1.update_layout(barmode='stack', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white", xaxis=dict(type='category', tickangle=-45))
             st.plotly_chart(fig1, use_container_width=True)
-            with st.expander("📂 АРХІВ МІНУВАННЯ"): st.dataframe(df.iloc[1:, :4], use_container_width=True, hide_index=True)
+            with st.expander("📂 АРХІВ МІНУВАННЯ"):
+                st.dataframe(df.iloc[1:, :4], use_container_width=True, hide_index=True)
 
     # --- БРИГАДНИЙ ЗГ ---
     elif selected_tab == "Бригадний ЗГ":
@@ -208,5 +223,8 @@ try:
         f.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white")
         st.plotly_chart(f, use_container_width=True)
 
+    else:
+        st.dataframe(df.iloc[1:].astype(str), use_container_width=True, hide_index=True)
+
 except Exception as e:
-    st.error(f"Помилка: {e}")
+    st.error(f"Помилка: {e}. Перевірте, чи правильно вказана назва вкладки в Google Sheets.")
