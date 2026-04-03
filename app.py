@@ -147,8 +147,6 @@ try:
         for r in data_list:
             dt = pd.to_datetime(str(r[0]), dayfirst=True, errors='coerce')
             if pd.notnull(dt):
-                v, u = get_pts(to_native(r[2]), "Міна", r[3]), 0 # Спрощена верифікація для мін
-                # В мінуванні ми рахуємо штуки, тому поправимо:
                 v_q, u_q = 0, 0
                 st_cl = str(r[3]).lower()
                 if "не верифіковано" in st_cl:
@@ -156,7 +154,6 @@ try:
                     u_q = float(m.group(1)) if m else to_native(r[2])
                     v_q = max(0, to_native(r[2]) - u_q)
                 else: v_q = to_native(r[2])
-                
                 clean_rows.append({"Дата_dt": dt, "День": dt.day, "Місяць": dt.month, "Рік": dt.year, "Місяць_Рік": MONTHS_UKR.get(dt.month, "M") + " " + str(dt.year), "S": dt.year*100+dt.month, "V": v_q, "U": u_q})
         if clean_rows:
             m_o = sorted(list(set([(r["Місяць_Рік"], r["S"]) for r in clean_rows])), key=lambda x: x[1], reverse=True)
@@ -173,12 +170,12 @@ try:
             f_m.add_trace(go.Bar(x=labs, y=[v_v[l] for l in labs], name='Верифіковано', marker_color='#444444'))
             f_m.add_trace(go.Bar(x=labs, y=[u_v[l] for l in labs], name='Не верифіковано', marker_color='#CC0000'))
             f_m.add_trace(go.Scatter(x=labs, y=[v_v[l]+u_v[l] for l in labs], mode='text', text=[str(int(v_v[l])) if v_v[l]>0 else "" for l in labs], textposition='top center', showlegend=False, textfont=dict(color='white', size=12)))
-            f_m.update_layout(barmode='stack', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white", xaxis=dict(type='category', tickangle=-45))
+            f_m.update_layout(barmode='stack', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white", height=400, xaxis=dict(type='category', tickangle=-45))
             st.plotly_chart(f_m, use_container_width=True)
 
     # --- УРАЖЕННЯ ---
     elif category == "🔥 Ураження":
-        urazh_tabs = ["Ураження 03.2026", "Ураження 04.2026", "Ураження 02.2026"]
+        urazh_tabs = ["Ураження 04.2026", "Ураження 03.2026", "Ураження 02.2026", "Ураження 01.2026"]
         selected_tab = st.selectbox("Оберіть період:", urazh_tabs)
         df = conn.read(worksheet=selected_tab, ttl=300, header=None).fillna("")
         data_list = df.values.tolist()[1:]
@@ -192,12 +189,11 @@ try:
                 target = str(r[1]).strip()
                 v_p = get_pts(q, target, r[3])
                 u_p = (q * POINTS_MAP.get(target, 0)) - v_p
-                clean_rows.append({"Дата": last_dt, "V": v_p, "U": u_p, "День": last_dt.day, "Місяць": last_dt.month, "Рік": last_dt.year, "Ціль": target, "Q": q})
+                clean_rows.append({"Дата": last_dt, "V": v_p, "U": u_p, "День": last_dt.day, "Місяць": last_dt.month, "Рік": last_dt.year})
         if clean_rows:
             y, m = clean_rows[0]["Рік"], clean_rows[0]["Місяць"]
             labs = [f"{d}.{str(m).zfill(2)}" for d in range(1, pd.Period(f"{y}-{m}").days_in_month + 1)]
-            v_v, u_v = {l: 0.0 for l in labs}, {l: 0.0 for l in labels if l in labs} # безпечний словник
-            v_v = {l: 0.0 for l in labs}; u_v = {l: 0.0 for l in labs}
+            v_v, u_v = {l: 0.0 for l in labs}, {l: 0.0 for l in labs}
             for r in clean_rows:
                 l = f"{r['День']}.{str(m).zfill(2)}"
                 v_v[l] += r["V"]; u_v[l] += r["U"]
@@ -206,7 +202,7 @@ try:
             f_u.add_trace(go.Bar(x=labs, y=[v_v[l] for l in labs], name='Верифіковано', marker_color='#444444'))
             f_u.add_trace(go.Bar(x=labs, y=[u_v[l] for l in labs], name='Не верифіковано', marker_color='#CC0000'))
             f_u.add_trace(go.Scatter(x=labs, y=[v_v[l]+u_v[l] for l in labs], mode='text', text=[str(int(v_v[l])) if v_v[l]>0 else "" for l in labs], textposition='top center', showlegend=False, textfont=dict(color='white')))
-            f_u.update_layout(barmode='stack', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white", xaxis=dict(type='category', tickangle=-45))
+            f_u.update_layout(barmode='stack', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white", height=400, xaxis=dict(type='category', tickangle=-45))
             st.plotly_chart(f_u, use_container_width=True)
 
 except Exception as e:
