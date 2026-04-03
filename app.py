@@ -8,7 +8,7 @@ import re
 # --- 1. НАЛАШТУВАННЯ СТОРІНКИ ---
 st.set_page_config(page_title="СИТУАЦІЙНИЙ ЦЕНТР 1 аемб", layout="wide", page_icon="🛡️")
 
-# ПОВНИЙ СЛОВНИК БАЛІВ
+# СЛОВНИК БАЛІВ
 POINTS_MAP = {
     "Антена": 4, "О/С 200": 9, "О/С 300": 9, "Молнія": 20, "ФПВ": 7, "Мавік": 7,
     "Бомбер": 7, "РЛС": 15, "Міномет": 10, "ЛАТ": 10, "Генератор": 4, "РЕБ": 4,
@@ -94,7 +94,7 @@ def get_pts(qty, target, status):
 
 # --- 5. ВІДОБРАЖЕННЯ ДАНИХ ---
 try:
-    # --- БРИГАДНІ ЗВІТИ ---
+    # --- БРИГАДНІ ЗВІТИ (ДОДАНО НАКОПИЧЕННЯ) ---
     if category == "⚔️ Бригадні звіти":
         brig_tabs = ["Бригадний1", "Бригадний ЗГ"]
         selected_tab = st.selectbox("Оберіть розділ звіту:", brig_tabs)
@@ -121,13 +121,34 @@ try:
             if clean_results:
                 all_dates = sorted(list(set([r["Дата"] for r in clean_results])))
                 x_labs = [d.strftime('%d.%m') for d in all_dates]
-                fig = go.Figure()
-                for b in units_cols.keys():
-                    y_v = [sum(r["Бали"] for r in clean_results if r["Дата"] == d and r["Бат"] == b) for d in all_dates]
-                    if sum(y_v) > 0:
-                        fig.add_trace(go.Bar(x=x_labs, y=y_v, name=b, marker_color=clrs.get(b), text=[str(int(v)) if v>0 else "" for v in y_v], textposition='outside', textfont=dict(color='white')))
-                fig.update_layout(barmode='group', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white", height=450, legend=dict(orientation="h", y=1.1), showlegend=True)
-                st.plotly_chart(fig, use_container_width=True)
+                
+                # ПЕРЕМИКАЧ ВИДУ (ДЕНЬ / НАКОПИЧЕННЯ)
+                tab_daily, tab_cum = st.tabs(["📊 Статистика по днях", "📈 Прогрес за місяць (накопичувально)"])
+                
+                with tab_daily:
+                    fig_daily = go.Figure()
+                    for b in units_cols.keys():
+                        y_v = [sum(r["Бали"] for r in clean_results if r["Дата"] == d and r["Бат"] == b) for d in all_dates]
+                        if sum(y_v) > 0:
+                            fig_daily.add_trace(go.Bar(x=x_labs, y=y_v, name=b, marker_color=clrs.get(b), text=[str(int(v)) if v > 0 else "" for v in y_v], textposition='outside', textfont=dict(color='white')))
+                    fig_daily.update_layout(barmode='group', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white", height=450, legend=dict(orientation="h", y=1.1))
+                    st.plotly_chart(fig_daily, use_container_width=True)
+
+                with tab_cum:
+                    fig_cum = go.Figure()
+                    for b in units_cols.keys():
+                        # Рахуємо накопичувально
+                        y_cum = []
+                        current_total = 0.0
+                        for d in all_dates:
+                            day_pts = sum(r["Бали"] for r in clean_results if r["Дата"] == d and r["Бат"] == b)
+                            current_total += day_pts
+                            y_cum.append(current_total)
+                        
+                        if sum(y_cum) > 0:
+                            fig_cum.add_trace(go.Bar(x=x_labs, y=y_cum, name=b, marker_color=clrs.get(b), text=[str(int(v)) if v > 0 else "" for v in y_cum], textposition='outside', textfont=dict(color='white')))
+                    fig_cum.update_layout(barmode='group', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white", height=450, legend=dict(orientation="h", y=1.1))
+                    st.plotly_chart(fig_cum, use_container_width=True)
 
                 st.markdown("#### 🎯 Класифікація по підрозділах")
                 sel_unit = st.selectbox("Оберіть батальйон для деталізації:", list(units_cols.keys()))
@@ -138,6 +159,65 @@ try:
                     t_p = sum(r["Бали"] for r in u_data if r["Ціль"] == t)
                     u_table.append({"Тип цілі": t, "Кількість (шт)": int(t_q), "Бали": int(t_p)})
                 st.table(pd.DataFrame(u_table).sort_values(by="Бали", ascending=False))
+
+    # --- УРАЖЕННЯ (ПОВЕРНУТО ДО КЛАСИКИ) ---
+    elif category == "🔥 Ураження":
+        urazh_tabs = ["Ураження 04.2026", "Ураження 03.2026", "Ураження 02.2026", "Ураження 01.2026"]
+        selected_tab = st.selectbox("Оберіть період уражень:", urazh_tabs)
+        df = conn.read(worksheet=selected_tab, ttl=300, header=None).fillna("")
+        
+        data_list = df.values.tolist()[1:]
+        clean_rows, last_dt = [], None
+        
+        for r in data_list:
+            target_name = str(r[1]).strip()
+            if str(r[0]).strip() != "":
+                dt = pd.to_datetime(str(r[0]), dayfirst=True, errors='coerce')
+                if pd.notnull(dt): last_dt = dt
+            if last_dt and target_name != "":
+                q = to_native(r[2])
+                status = str(r[3])
+                v_p = get_pts(q, target_name, status)
+                u_p = (q * POINTS_MAP.get(target_name, 0)) - v_p
+                
+                v_q = 0
+                if "не верифіковано" in status.lower():
+                    match = re.search(r'(\d+)', status.lower())
+                    unv_q = float(match.group(1)) if match else q
+                    v_q = max(0.0, q - unv_q)
+                else: v_q = q
+                
+                clean_rows.append({"Дата": last_dt, "День": last_dt.day, "Місяць": last_dt.month, "Рік": last_dt.year, "Ціль": target_name, "V": v_p, "U": u_p, "Q_total": q, "Q_verif": v_q})
+
+        if clean_rows:
+            y, m = clean_rows[0]["Рік"], clean_rows[0]["Місяць"]
+            num_days = pd.Period(f"{y}-{m}").days_in_month
+            labels = [f"{d}.{str(m).zfill(2)}" for d in range(1, num_days + 1)]
+            
+            v_v, u_v = {l: 0.0 for l in labels}, {l: 0.0 for l in labels}
+            obj_stats = {} 
+            for r in clean_rows:
+                l = f"{r['День']}.{str(m).zfill(2)}"
+                v_v[l] += r["V"]; u_v[l] += r["U"]
+                name = r["Ціль"]
+                if name not in obj_stats: obj_stats[name] = [0, 0, 0]
+                obj_stats[name][0] += r["Q_total"]; obj_stats[name][1] += r["Q_verif"]; obj_stats[name][2] += r["V"]
+
+            st.metric("ЗАГАЛЬНІ ВЕРИФІКОВАНІ БАЛИ:", f"{int(sum(v_v.values()))}")
+            
+            f_u = go.Figure()
+            f_u.add_trace(go.Bar(x=labels, y=[v_v[l] for l in labels], name='Верифіковано', marker_color='#444444'))
+            f_u.add_trace(go.Bar(x=labels, y=[u_v[l] for l in labels], name='Не верифіковано', marker_color='#CC0000'))
+            f_u.add_trace(go.Scatter(x=labels, y=[v_v[l]+u_v[l] for l in labels], mode='text', text=[str(int(v_v[l])) if v_v[l]>0 else "" for l in labels], textposition='top center', showlegend=False, textfont=dict(color='white')))
+            f_u.update_layout(barmode='stack', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white", height=400, xaxis=dict(type='category', tickangle=-45))
+            st.plotly_chart(f_u, use_container_width=True)
+
+            st.markdown("---")
+            st.markdown("#### 🎯 Детальна статистика уражень за типами цілей")
+            table_data = []
+            for name, vals in sorted(obj_stats.items(), key=lambda x: x[1][2], reverse=True):
+                table_data.append({"Тип цілі": name, "Всього (шт)": int(vals[0]), "Верифіковано (шт)": int(vals[1]), "Бали": int(vals[2])})
+            st.table(pd.DataFrame(table_data))
 
     # --- МІНУВАННЯ ---
     elif category == "🧨 Мінування":
@@ -172,89 +252,6 @@ try:
             f_m.add_trace(go.Scatter(x=labs, y=[v_v[l]+u_v[l] for l in labs], mode='text', text=[str(int(v_v[l])) if v_v[l]>0 else "" for l in labs], textposition='top center', showlegend=False, textfont=dict(color='white', size=12)))
             f_m.update_layout(barmode='stack', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white", height=400, xaxis=dict(type='category', tickangle=-45))
             st.plotly_chart(f_m, use_container_width=True)
-
-    # --- УРАЖЕННЯ (ДОДАНО НАКОПИЧУВАЛЬНИЙ ВИД) ---
-    elif category == "🔥 Ураження":
-        urazh_tabs = ["Ураження 04.2026", "Ураження 03.2026", "Ураження 02.2026", "Ураження 01.2026"]
-        selected_tab = st.selectbox("Оберіть період уражень:", urazh_tabs)
-        df = conn.read(worksheet=selected_tab, ttl=300, header=None).fillna("")
-        
-        data_list = df.values.tolist()[1:]
-        clean_rows, last_dt = [], None
-        
-        for r in data_list:
-            target_name = str(r[1]).strip()
-            if str(r[0]).strip() != "":
-                dt = pd.to_datetime(str(r[0]), dayfirst=True, errors='coerce')
-                if pd.notnull(dt): last_dt = dt
-            if last_dt and target_name != "":
-                q = to_native(r[2])
-                status = str(r[3])
-                v_p = get_pts(q, target_name, status)
-                u_p = (q * POINTS_MAP.get(target_name, 0)) - v_p
-                
-                v_q = 0
-                if "не верифіковано" in status.lower():
-                    match = re.search(r'(\d+)', status.lower())
-                    unv_q = float(match.group(1)) if match else q
-                    v_q = max(0.0, q - unv_q)
-                else: v_q = q
-                
-                clean_rows.append({
-                    "Дата": last_dt, "День": last_dt.day, "Місяць": last_dt.month, "Рік": last_dt.year,
-                    "Ціль": target_name, "V": v_p, "U": u_p, "Q_total": q, "Q_verif": v_q
-                })
-
-        if clean_rows:
-            y, m = clean_rows[0]["Рік"], clean_rows[0]["Місяць"]
-            num_days = pd.Period(f"{y}-{m}").days_in_month
-            labs = [f"{d}.{str(m).zfill(2)}" for d in range(1, num_days + 1)]
-            
-            # Розрахунок денних балів
-            v_v, u_v = {l: 0.0 for l in labs}, {l: 0.0 for l in labs}
-            obj_stats = {} 
-            for r in clean_rows:
-                l = f"{r['День']}.{str(m).zfill(2)}"
-                v_v[l] += r["V"]; u_v[l] += r["U"]
-                name = r["Ціль"]
-                if name not in obj_stats: obj_stats[name] = [0, 0, 0]
-                obj_stats[name][0] += r["Q_total"]; obj_stats[name][1] += r["Q_verif"]; obj_stats[name][2] += r["V"]
-
-            st.metric("ЗАГАЛЬНІ ВЕРИФІКОВАНІ БАЛИ:", f"{int(sum(v_v.values()))}")
-            
-            # ПЕРЕМИКАЧ ВИДУ ГРАФІКА
-            tab_daily, tab_cum = st.tabs(["📉 Статистика по днях", "📈 Накопичувально за місяць"])
-            
-            with tab_daily:
-                f_u = go.Figure()
-                f_u.add_trace(go.Bar(x=labs, y=[v_v[l] for l in labs], name='Верифіковано', marker_color='#444444'))
-                f_u.add_trace(go.Bar(x=labs, y=[u_v[l] for l in labs], name='Не верифіковано', marker_color='#CC0000'))
-                f_u.add_trace(go.Scatter(x=labs, y=[v_v[l]+u_v[l] for l in labs], mode='text', text=[str(int(v_v[l])) if v_v[l]>0 else "" for l in labs], textposition='top center', showlegend=False, textfont=dict(color='white')))
-                f_u.update_layout(barmode='stack', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white", height=400, xaxis=dict(type='category', tickangle=-45))
-                st.plotly_chart(f_u, use_container_width=True)
-
-            with tab_cum:
-                # Розрахунок накопичувальних значень
-                cum_v = []; cum_u = []
-                curr_v = 0.0; curr_u = 0.0
-                for l in labs:
-                    curr_v += v_v[l]; curr_u += u_v[l]
-                    cum_v.append(curr_v); cum_u.append(curr_u)
-                
-                f_cum = go.Figure()
-                f_cum.add_trace(go.Bar(x=labs, y=cum_v, name='Верифіковано (разом)', marker_color='#444444'))
-                f_cum.add_trace(go.Bar(x=labs, y=cum_u, name='Не верифіковано (разом)', marker_color='#CC0000'))
-                f_cum.add_trace(go.Scatter(x=labs, y=[v + u for v, u in zip(cum_v, cum_u)], mode='text', text=[str(int(v)) if v > 0 else "" for v in cum_v], textposition='top center', showlegend=False, textfont=dict(color='white')))
-                f_cum.update_layout(barmode='stack', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white", height=400, xaxis=dict(type='category', tickangle=-45))
-                st.plotly_chart(f_cum, use_container_width=True)
-
-            # ТАБЛИЦЯ СТАТИСТИКИ
-            st.markdown("---")
-            st.markdown("#### 🎯 Детальна статистика уражень за типами цілей")
-            table_data = []
-            for name, vals in sorted(obj_stats.items(), key=lambda x: x[1][2], reverse=True):
-                table_data.append({"Тип цілі": name, "Всього (шт)": int(vals[0]), "Верифіковано (шт)": int(vals[1]), "Бали": int(vals[2])})
-            st.table(pd.DataFrame(table_data))
 
 except Exception as e:
     st.error(f"Помилка: {e}")
