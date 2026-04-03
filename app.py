@@ -6,7 +6,7 @@ import base64
 import re
 
 # --- 1. НАЛАШТУВАННЯ СТОРІНКИ ---
-st.set_page_config(page_title="СИТУАЦІЙНИЙ ЦЕНТР 77 ОАЕМБр", layout="wide", page_icon="🇺🇦")
+st.set_page_config(page_title="СИТУАЦІЙНИЙ ЦЕНТР 1 аемб", layout="wide", page_icon="🛡️")
 
 USER_PASSWORD = "2887" 
 MONTHS_UKR = {
@@ -14,7 +14,7 @@ MONTHS_UKR = {
     7: "Липень", 8: "Серпень", 9: "Вересень", 10: "Жовтень", 11: "Листопад", 12: "Грудень"
 }
 
-# --- 2. ЕКРАН ВХОДУ (ОКУРАТНИЙ ДИЗАЙН) ---
+# --- 2. ЕКРАН ВХОДУ (АКЦЕНТ НА 1 аемб) ---
 def check_password():
     if "password_correct" not in st.session_state:
         st.markdown("<style>.stApp { background-color: #0E1117; }</style>", unsafe_allow_html=True)
@@ -23,12 +23,14 @@ def check_password():
         with col_c:
             st.markdown("""
                 <div style='background:rgba(255,255,255,0.03); padding:30px; border-radius:15px; border:1px solid rgba(255,255,255,0.1); text-align:center;'>
-                    <h2 style='color:white; margin-bottom: 0; font-weight: 300; letter-spacing: 1px;'>🛡️ СИТУАЦІЙНИЙ ЦЕНТР</h2>
-                    <p style='color:#aaa; font-size: 14px; margin-top: 5px;'>77 ОАЕМБр • ДШВ ЗСУ 🇺🇦</p>
-                    <div style='margin: 25px 0;'></div>
+                    <p style='font-size: 24px; margin-bottom: 10px;'>🇺🇦</p>
+                    <h2 style='color:white; margin-bottom: 0; font-weight: 400; letter-spacing: 1px;'>1 аемб</h2>
+                    <p style='color:#ffd700; font-size: 13px; margin-top: 5px; font-weight: 500;'>77 ОАЕМБр • ДШВ ЗСУ</p>
+                    <p style='color:#666; font-size: 12px; margin-top: 15px;'>СИТУАЦІЙНИЙ ЦЕНТР БАТАЛЬЙОНУ</p>
+                    <hr style='border: 0; border-top: 1px solid rgba(255,255,255,0.05); margin: 20px 0;'>
                 </div>
             """, unsafe_allow_html=True)
-            pwd = st.text_input("КОД ДОСТУПУ:", type="password", placeholder="****")
+            pwd = st.text_input("КОД ДОСТУПУ:", type="password", placeholder="Введіть пароль...")
             if st.button("УВІЙТИ В СИСТЕМУ"):
                 if pwd == USER_PASSWORD:
                     st.session_state["password_correct"] = True
@@ -51,7 +53,6 @@ def set_design(bin_file):
     .stApp {{ {bg_css} background-size: cover; background-position: center; background-attachment: fixed; }} 
     .stDataFrame {{ background: rgba(0,0,0,0.8); border-radius: 10px; }} 
     [data-testid="stSidebar"] {{ background-color: rgba(14, 17, 23, 0.95); }}
-    [data-testid="stMetricValue"] {{ font-size: 24px !important; color: #ffd700; }}
     </style>
     ''', unsafe_allow_html=True)
 
@@ -88,7 +89,7 @@ def get_verif_data(total, text):
     elif "верифіковано" in txt or txt == "так": return total, 0.0
     return 0.0, total
 
-# --- 5. ВІДОБРАЖЕННЯ ---
+# --- 5. ВІДОБРАЖЕННЯ ДАНИХ ---
 try:
     df = conn.read(worksheet=selected_tab, ttl=300, header=None).fillna("")
     st.markdown(f"<h3 style='text-align:center; color:white; font-weight:300;'>📊 {selected_tab}</h3>", unsafe_allow_html=True)
@@ -111,6 +112,7 @@ try:
             except: continue
 
         if clean_rows:
+            # Сортування місяців: актуальний — перший
             m_options = sorted(list(set([(r["Місяць_Рік"], r["Сорт"]) for r in clean_rows])), key=lambda x: x[1], reverse=True)
             sel_m_label = st.selectbox("Період перегляду:", [x[0] for x in m_options])
             
@@ -123,6 +125,7 @@ try:
                 l = f"{r['День']}.{str(m_num).zfill(2)}"
                 v_vals[l] += r["V"]; u_vals[l] += r["U"]
             
+            # ГРАФІК 1: ПО ДНЯХ
             fig1 = go.Figure()
             fig1.add_trace(go.Bar(x=labels, y=[v_vals[l] for l in labels], name='Верифіковано', marker_color='#444444'))
             fig1.add_trace(go.Bar(x=labels, y=[u_vals[l] for l in labels], name='Не верифіковано', marker_color='#CC0000'))
@@ -135,6 +138,7 @@ try:
                               xaxis=dict(type='category', tickangle=-45, gridcolor='rgba(255,255,255,0.05)'), margin=dict(t=40))
             st.plotly_chart(fig1, use_container_width=True)
 
+            # ГРАФІК 2: ПО МІСЯЦЯХ
             st.markdown("#### 📈 Загальна динаміка")
             m_t, m_u, m_s = {}, {}, {}
             for r in clean_rows:
@@ -178,4 +182,12 @@ try:
         dates = [str(r[0]) for r in d_list]
         f = go.Figure()
         f.add_trace(go.Bar(x=dates, y=[float(to_native(r[1])) for r in d_list], name='Попередній', marker_color='#A5A5A5', text=[str(int(to_native(r[1]))) for r in d_list], textposition='outside'))
-        f.add_trace(go.Bar(x=dates, y=[float(to_native(r[2])) for r in d_list], name='Поточний', marker_color='#92D050', text=[str(int(to_native(r[2]))) for r in d_list
+        f.add_trace(go.Bar(x=dates, y=[float(to_native(r[2])) for r in d_list], name='Поточний', marker_color='#92D050', text=[str(int(to_native(r[2]))) for r in d_list], textposition='outside'))
+        f.update_layout(barmode='group', paper_bgcolor='rgba(0,0,0,0)', font_color="white", height=500)
+        st.plotly_chart(f, use_container_width=True)
+        st.write(df.iloc[1:].T.astype(str))
+    else:
+        st.write(df.iloc[1:].astype(str))
+
+except Exception as e:
+    st.error(f"Помилка завантаження: {e}")
