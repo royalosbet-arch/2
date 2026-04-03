@@ -117,13 +117,14 @@ try:
             if last_date and target_name != "" and qty > 0:
                 unit_price = POINTS_MAP.get(target_name, 0)
                 total_pts = qty * unit_price
-                v_p, u_p = get_verif_data(total_pts, status)
-                # Якщо статус "не верифіковано X", рахуємо бали за ці X одиниць
+                # Логіка для "не верифіковано X"
                 if "не верифіковано" in status.lower():
                     match = re.search(r'(\d+)', status)
                     unv_qty = float(match.group(1)) if match else qty
                     u_p = unv_qty * unit_price
                     v_p = max(0.0, total_pts - u_p)
+                else:
+                    v_p, u_p = get_verif_data(total_pts, status)
                 clean_rows.append({"Дата_dt": last_date, "День": last_date.day, "Місяць": last_date.month, "Рік": last_date.year, "V": v_p, "U": u_p})
 
         if clean_rows:
@@ -134,14 +135,13 @@ try:
                 l = f"{r['День']}.{str(m).zfill(2)}"
                 v_vals[l] += r["V"]; u_vals[l] += r["U"]
             
-            # Загальна сума балів
             total_sum = sum(v_vals.values())
             st.metric("ЗАГАЛЬНА КІЛЬКІСТЬ ВЕРИФІКОВАНИХ БАЛІВ:", f"{int(total_sum)}")
 
             fig = go.Figure()
             fig.add_trace(go.Bar(x=labels, y=[v_vals[l] for l in labels], name='Верифіковано', marker_color='#444444'))
             fig.add_trace(go.Bar(x=labels, y=[u_vals[l] for l in labels], name='Не верифіковано', marker_color='#CC0000'))
-            fig.add_trace(go.Scatter(x=labels, y=[v_vals[l]+u_vals[l] for l in labels], mode='text', text=[str(int(v_vals[l])) if v_vals[l]>0 else "" for l in labels], textposition='top center', showlegend=False, textfont=dict(color='black', size=13)))
+            fig.add_trace(go.Scatter(x=labels, y=[v_vals[l]+u_vals[l] for l in labels], mode='text', text=[str(int(v_vals[l])) if v_vals[l]>0 else "" for l in labels], textposition='top center', showlegend=False, textfont=dict(color='white', size=13)))
             fig.update_layout(barmode='stack', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white", xaxis=dict(type='category', tickangle=-45))
             st.plotly_chart(fig, use_container_width=True)
             with st.expander("📂 ЖУРНАЛ УРАЖЕНЬ"): st.dataframe(df.iloc[1:, :4], use_container_width=True, hide_index=True)
@@ -168,10 +168,14 @@ try:
             for r in m_data:
                 l = f"{r['День']}.{str(m).zfill(2)}"
                 v_v[l] += r["V"]; u_v[l] += r["U"]
+            
+            total_mines = sum(v_v.values())
+            st.metric("ЗАГАЛЬНА КІЛЬКІСТЬ ВЕРИФІКОВАНИХ МІН:", f"{int(total_mines)}")
+
             fig1 = go.Figure()
             fig1.add_trace(go.Bar(x=labels, y=[v_v[l] for l in labels], name='Верифіковано', marker_color='#444444'))
             fig1.add_trace(go.Bar(x=labels, y=[u_v[l] for l in labels], name='Не верифіковано', marker_color='#CC0000'))
-            fig1.add_trace(go.Scatter(x=labels, y=[v_v[l]+u_v[l] for l in labels], mode='text', text=[str(int(v_v[l])) if v_v[l]>0 else "" for l in labels], textposition='top center', showlegend=False, textfont=dict(color='black', size=13)))
+            fig1.add_trace(go.Scatter(x=labels, y=[v_v[l]+u_v[l] for l in labels], mode='text', text=[str(int(v_v[l])) if v_v[l]>0 else "" for l in labels], textposition='top center', showlegend=False, textfont=dict(color='white', size=13)))
             fig1.update_layout(barmode='stack', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white", xaxis=dict(type='category', tickangle=-45))
             st.plotly_chart(fig1, use_container_width=True)
             with st.expander("📂 АРХІВ МІНУВАННЯ"): st.dataframe(df.iloc[1:, :4], use_container_width=True, hide_index=True)
@@ -191,7 +195,7 @@ try:
                 if idx:
                     v = [to_native(r[idx[0]]) for r in d_rows if r[0] != ""]
                     text_l = [f"{int(val)}<br><span style='font-size:10px;'>{u}</span>" if val > 0 else "" for val in v]
-                    f.add_trace(go.Bar(x=x_dates, y=[float(val) for val in v], name=u, marker_color=c, text=text_l, textposition='outside'))
+                    f.add_trace(go.Bar(x=x_dates, y=[float(val) for val in v], name=u, marker_color=c, text=text_l, textposition='outside', textfont=dict(color='white')))
             f.update_layout(title=dict(text=title, font=dict(color='white')), barmode='group', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white", showlegend=False, xaxis=dict(type='category', tickangle=-45))
             return f
         st.plotly_chart(bc("🏆 ЗАГАЛЬНИЙ РЕЗУЛЬТАТ", 0), use_container_width=True)
@@ -200,7 +204,7 @@ try:
     elif selected_tab == "Е-Бали":
         d_list = df.values.tolist()[1:]
         f = go.Figure()
-        f.add_trace(go.Bar(x=[str(r[0]) for r in d_list], y=[to_native(r[2]) for r in d_list], name='Поточний', marker_color='#92D050', text=[str(int(to_native(r[2]))) for r in d_list], textposition='outside', textfont=dict(color='black')))
+        f.add_trace(go.Bar(x=[str(r[0]) for r in d_list], y=[to_native(r[2]) for r in d_list], name='Поточний', marker_color='#92D050', text=[str(int(to_native(r[2]))) for r in d_list], textposition='outside', textfont=dict(color='white')))
         f.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white")
         st.plotly_chart(f, use_container_width=True)
 
