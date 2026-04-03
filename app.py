@@ -110,8 +110,7 @@ try:
         clean_results = []
         for u_name, cols in units_cols.items():
             last_dt = None
-            for row in data[1:]: # Починаємо з другого рядка
-                # БЕЗПЕЧНА ПЕРЕВІРКА: чи існує потрібна кількість колонок у цьому рядку
+            for row in data[1:]:
                 if len(row) <= max(cols): continue
                 
                 d_raw = str(row[cols[0]]).strip()
@@ -123,15 +122,14 @@ try:
                 
                 if not last_dt: continue
 
-                # 1. Обробка уражень
+                # Ураження
                 if target != "" and target != "Ціль":
                     q_total = to_native(row[cols[2]])
-                    v_status = str(row[cols[3]])
-                    v_pts, v_qty = calculate_verif_data(q_total, target, v_status)
+                    v_pts, v_qty = calculate_verif_data(q_total, target, str(row[cols[3]]))
                     if q_total > 0:
                         clean_results.append({"Дата": last_dt, "Бат": u_name, "Ціль": target, "Бали": v_pts, "Шт_всього": q_total, "Шт_вериф": v_qty})
                 
-                # 2. Обробка мінування (5-та колонка)
+                # Мінування
                 m_qty = to_native(row[cols[4]])
                 if m_qty > 0:
                     clean_results.append({"Дата": last_dt, "Бат": u_name, "Ціль": "Мінування", "Бали": m_qty, "Шт_всього": m_qty, "Шт_вериф": m_qty})
@@ -169,8 +167,8 @@ try:
 
             st.markdown("---")
             sel_unit = st.selectbox("Оберіть підрозділ для деталізації:", list(units_cols.keys()))
-            u_summary = []
             u_data = [r for r in clean_results if r["Бат"] == sel_unit]
+            u_summary = []
             for t in sorted(list(set([r["Ціль"] for r in u_data]))):
                 q_t = sum(r["Шт_всього"] for r in u_data if r["Ціль"] == t)
                 q_v = sum(r["Шт_вериф"] for r in u_data if r["Ціль"] == t)
@@ -180,8 +178,7 @@ try:
 
     elif category == "🧨 Мінування":
         df = conn.read(worksheet="Мінування", ttl=300, header=None).fillna("")
-        data_list = df.values.tolist()[1:]
-        clean_rows = []
+        data_list = df.values.tolist()[1:]; clean_rows = []
         for r in data_list:
             dt = pd.to_datetime(str(r[0]), dayfirst=True, errors='coerce')
             if pd.notnull(dt):
@@ -189,7 +186,7 @@ try:
                 if "не верифіковано" in st_cl:
                     m = re.search(r'(\d+)', st_cl)
                     u_q = float(m.group(1)) if m else qty
-                    v_q = max(0, qty - u_q); u_q = unv_q = u_q
+                    v_q = max(0, qty - u_q); u_q = u_q
                 else: v_q = qty; u_q = 0
                 clean_rows.append({"Дата": dt, "День": dt.day, "Місяць_Рік": MONTHS_UKR.get(dt.month, "M") + " " + str(dt.year), "S": dt.year*100+dt.month, "V": v_q, "U": u_q})
         if clean_rows:
@@ -226,4 +223,20 @@ try:
             st.metric("ВЕРИФІКОВАНІ БАЛИ БАТАЛЬЙОНУ:", f"{int(sum(r['V'] for r in clean_rows))}")
             y, m = clean_rows[0]["Дата"].year, clean_rows[0]["Дата"].month
             labs = [f"{d}.{str(m).zfill(2)}" for d in range(1, pd.Period(f"{y}-{m}").days_in_month + 1)]
-            v_v, u_
+            v_v, u_v, obj_stats = {l: 0.0 for l in labs}, {l: 0.0 for l in labs}, {}
+            for r in clean_rows:
+                l = f"{r['Дата'].day}.{str(m).zfill(2)}"
+                v_v[l] += r["V"]; u_v[l] += r["U"]
+                n = r["Ціль"]
+                if n not in obj_stats: obj_stats[n] = [0, 0, 0]
+                obj_stats[n][0] += r["Q"]; obj_stats[n][1] += r["QV"]; obj_stats[n][2] += r["V"]
+            f_u = go.Figure()
+            f_u.add_trace(go.Bar(x=labs, y=[v_v[l] for l in labs], name='Вериф', marker_color='#444444'))
+            f_u.add_trace(go.Bar(x=labs, y=[u_v[l] for l in labs], name='Не вериф', marker_color='#CC0000'))
+            f_u.add_trace(go.Scatter(x=labs, y=[v_v[l]+u_v[l] for l in labs], mode='text', text=[str(int(v_v[l])) if v_v[l]>0 else "" for l in labs], textposition='top center', showlegend=False, textfont=dict(color='white')))
+            f_u.update_layout(barmode='stack', paper_bgcolor='rgba(0,0,0,0)', font_color="white", height=400, xaxis=dict(type='category', tickangle=-45))
+            st.plotly_chart(f_u, use_container_width=True)
+            st.table(pd.DataFrame([{"Тип цілі": k, "Всього (шт)": int(v[0]), "Верифіковано (шт)": int(v[1]), "Бали": int(v[2])} for k, v in sorted(obj_stats.items(), key=lambda x: x[1][2], reverse=True)]))
+
+except Exception as e:
+    st.error(f"Помилка: {e}")
