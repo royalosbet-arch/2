@@ -6,9 +6,9 @@ import base64
 import re
 
 # --- 1. НАЛАШТУВАННЯ СТОРІНКИ ---
-st.set_page_config(page_title="СИТУАЦІЙНИЙ ЦЕНТР 1 аемб", layout="wide", page_icon="🇺🇦")
+st.set_page_config(page_title="СИТУАЦІЙНИЙ ЦЕНТР 1 аемб", layout="wide", page_icon="🛡️")
 
-# --- ФУНКЦІЯ ДЛЯ КОДУВАННЯ КАРТИНКИ ЕМБЛЕМИ (файл має лежати в папці з app.py) ---
+# --- ФУНКЦІЯ ДЛЯ КОДУВАННЯ КАРТИНКИ ЕМБЛЕМИ ---
 def get_base64_image(image_path):
     try:
         with open(image_path, "rb") as img_file:
@@ -22,51 +22,58 @@ MONTHS_UKR = {
     7: "Липень", 8: "Серпень", 9: "Вересень", 10: "Жовтень", 11: "Листопад", 12: "Грудень"
 }
 
-# --- 2. ЕКРАН ВХОДУ (ОНОВЛЕНИЙ ГЕРАЛЬДИЧНИЙ ДИЗАЙН НА ВЕСЬ КВАДРАТ) ---
+# --- 2. ЕКРАН ВХОДУ (НОВИЙ НАДІЙНИЙ ДИЗАЙН БЕЗ СКРИВЛЕНЬ) ---
 def check_password():
     if "password_correct" not in st.session_state:
-        # Намагаємось завантажити емблему батальйону
+        # Намагаємось завантажити емблему (файл logo.png має бути в папці)
         logo_base64 = get_base64_image("logo.png") 
         
         st.markdown("<style>.stApp { background-color: #0E1117; }</style>", unsafe_allow_html=True)
-        st.write("<br><br><br><br>", unsafe_allow_html=True)
+        st.write("<br><br>", unsafe_allow_html=True) # Зменшили відступ зверху
         col_l, col_c, col_r = st.columns([1.2, 1.5, 1.2])
         
         with col_c:
-            # Створюємо картку, фоном якої є емблема. Створюємо порожню зону, щоб не закривати крила та сокири.
-            logo_background_css = f'background-image: url("data:image/png;base64,{logo_base64}"); background-size: cover; background-position: center;' if logo_base64 else 'background-color: #1a1a1a;'
+            # Спершу виводимо саму картинку шеврона, щоб вона не кривилася
+            if logo_base64:
+                st.markdown(f"""
+                    <div style='text-align: center; margin-bottom: -20px; position: relative; z-index: 10;'>
+                        <img src="data:image/png;base64,{logo_base64}" style='
+                            max-width: 220px; /* Обмежуємо ширину для акуратності */
+                            height: auto;
+                            border-radius: 15px;
+                            box-shadow: 0px 10px 25px rgba(0,0,0,0.5); /* Тінь для об'єму */
+                        '>
+                    </div>
+                """, unsafe_allow_html=True)
             
+            # Під картинкою малюємо акуратну картку з текстом та полем вводу
             st.markdown(f"""
                 <div style='
-                    /* Основні стилі картки */
-                    {logo_background_css} 
-                    padding: 30px; 
+                    background:rgba(255,255,255,0.04); 
+                    padding: 40px 30px 30px 30px; /* Верхній паддінг більший через наповзання картинки */
                     border-radius: 20px; 
-                    border: 2px solid rgba(255,255,255,0.15); 
+                    border: 1px solid rgba(255,255,255,0.1); 
                     text-align: center;
-                    width: 320px; /* Трохи менша ширина, щоб виглядала як щит */
-                    margin: 0 auto;
-                    position: relative; /* Для позиціонування елементів всередині */
-                    box-shadow: 0px 0px 30px rgba(0,0,0,0.6); /* Тінь для виразності щита */
+                    position: relative;
+                    z-index: 1;
+                    box-shadow: 0px 5px 15px rgba(0,0,0,0.3);
                 '>
-                    <div style='position: relative; z-index: 10; padding-top: 15px;'>
-                        <h2 style='color:white; margin-bottom: 0; font-weight: 700; letter-spacing: 1px; font-size: 32px; text-shadow: 0px 0px 8px rgba(0,0,0,0.8);'>1 аемб</h2>
-                        <p style='color:#ffd700; font-size: 16px; margin-top: 5px; font-weight: 600; text-shadow: 0px 0px 6px rgba(0,0,0,0.6);'>77 ОАЕМБр • ДШВ ЗСУ 🇺🇦</p>
-                        
-                        <div style='height: 140px;'></div>
-                        
-                        <p style='color:#ffffff; font-size: 13px; margin-top: 25px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; text-shadow: 0px 0px 10px rgba(0,0,0,1); border-top: 1px solid rgba(255,255,255,0.15); padding-top: 15px;'>СИТУАЦІЙНИЙ ЦЕНТР БАТАЛЬЙОНУ</p>
-                    </div>
+                    <h2 style='color:white; margin-bottom: 0; font-weight: 700; letter-spacing: 1px; font-size: 34px; text-shadow: 0px 0px 10px rgba(0,0,0,0.5);'>1 аемб</h2>
+                    <p style='color:#ffd700; font-size: 16px; margin-top: 5px; font-weight: 600; text-shadow: 0px 0px 5px rgba(0,0,0,0.3);'>77 ОАЕМБр • ДШВ ЗСУ 🇺🇦</p>
+                    <hr style='border: 0; border-top: 1px solid rgba(255,255,255,0.08); margin: 25px 0;'>
+                    <p style='color:#ffffff; font-size: 13px; font-weight: 800; letter-spacing: 2.5px; text-transform: uppercase; text-shadow: 0px 0px 12px rgba(255,255,255,0.3);'>СИТУАЦІЙНИЙ ЦЕНТР БАТАЛЬЙОНУ</p>
+                    <div style='height: 15px;'></div>
                 </div>
             """, unsafe_allow_html=True)
             
-            # Поле пароля та кнопка (винесені окремо для чіткості)
+            # Поле пароля та кнопка (вбудовані Streamlit, надійні)
+            st.write("") # Невеликий відступ
             pwd = st.text_input("КОД ДОСТУПУ:", type="password", placeholder="Введіть пароль...")
             if st.button("УВІЙТИ В СИСТЕМУ"):
                 if pwd == USER_PASSWORD:
                     st.session_state["password_correct"] = True
                     st.rerun()
-                else: st.error("Невірний код")
+                else: st.error("Невірний код доступу")
         return False
     return True
 
