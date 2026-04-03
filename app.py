@@ -5,30 +5,15 @@ import plotly.graph_objects as go
 import base64
 import re
 
-# --- 1. НАЛАШТУВАННЯ ---
+# --- 1. НАЛАШТУВАННЯ СТОРІНКИ ---
 st.set_page_config(page_title="СИТУАЦІЙНИЙ ЦЕНТР 1 аемб", layout="wide", page_icon="🛡️")
 
-# --- СЛОВНИК БАЛІВ (Тут ти можеш змінювати ціни цілей) ---
+# --- СЛОВНИК БАЛІВ ДЛЯ УРАЖЕНЬ ---
 POINTS_MAP = {
-    "Антена": 4,
-    "О/С 200": 9,
-    "О/С 300": 9,
-    "Молнія": 20,
-    "ФПВ": 7,
-    "Мавік": 7,
-    "Бомбер": 7,
-    "РЛС": 15,
-    "Міномет": 10,
-    "ЛАТ": 10,
-    "Генератор": 4,
-    "РЕБ": 4,
-    "Фортифікація": 1,
-    "Укриття": 1,
-    "Електросамокат": 4,
-    "Квадроцикл": 4,
-    "Мотоцикл": 4,
-    "Танк": 50, # Приклад
-    "САУ": 30   # Приклад
+    "Антена": 4, "О/С 200": 9, "О/С 300": 9, "Молнія": 20, "ФПВ": 7, "Мавік": 7,
+    "Бомбер": 7, "РЛС": 15, "Міномет": 10, "ЛАТ": 10, "Генератор": 4, "РЕБ": 4,
+    "Фортифікація": 1, "Укриття": 1, "Електросамокат": 4, "Квадроцикл": 4, "Мотоцикл": 4,
+    "Танк": 50, "САУ": 30, "ББМ": 20, "Гармата": 20
 }
 
 def get_base64_image(image_path):
@@ -72,17 +57,18 @@ def check_password():
 
 if not check_password(): st.stop()
 
+# --- 3. ДИЗАЙН САЙТУ ---
 def set_design(bin_file):
     try:
         with open(bin_file, 'rb') as f: data = f.read()
         bin_str = base64.b64encode(data).decode()
         bg_css = f'background-image: url("data:image/png;base64,{bin_str}");'
     except: bg_css = 'background-color: #0E1117;'
-    st.markdown(f'<style>.stApp {{ {bg_css} background-size: cover; background-position: center; background-attachment: fixed; }} .stDataFrame {{ background: rgba(0,0,0,0.8); border-radius: 10px; }} [data-testid="stSidebar"] {{ background-color: rgba(14, 17, 23, 0.95); }}</style>', unsafe_allow_html=True)
+    st.markdown(f'<style>.stApp {{ {bg_css} background-size: cover; background-position: center; background-attachment: fixed; }} .stDataFrame {{ background: rgba(0,0,0,0.8); border-radius: 10px; }} [data-testid="stSidebar"] {{ background-color: rgba(14, 17, 23, 0.95); }} [data-testid="stMetricValue"] {{ color: #ffd700 !important; font-size: 36px !important; }}</style>', unsafe_allow_html=True)
 
 set_design('background.jpg')
 
-# --- 3. ПІДКЛЮЧЕННЯ ---
+# --- 4. ПІДКЛЮЧЕННЯ ТА НАВІГАЦІЯ ---
 conn = st.connection("gsheets", type=GSheetsConnection)
 st.sidebar.markdown("### 🛠️ УПРАВЛІННЯ")
 category = st.sidebar.radio("Напрямок:", ["⚔️ Бригадні звіти", "📈 Рейтинг та Бали", "🧨 Мінування", "🔥 Ураження", "📡 Спец. розділи"])
@@ -104,80 +90,99 @@ def to_native(val):
     try: return float(str(val).replace(',', '.'))
     except: return 0.0
 
-# --- 4. ВІДОБРАЖЕННЯ ---
+def get_verif_data(total, text):
+    txt = str(text).lower().strip()
+    if "не верифіковано" in txt:
+        match = re.search(r'(\d+)', txt)
+        unverif = float(match.group(1)) if match else 0.0
+        return max(0.0, total - unverif), unverif
+    elif "верифіковано" in txt or txt == "так": return total, 0.0
+    return 0.0, total
+
+# --- 5. ВІДОБРАЖЕННЯ ДАНИХ ---
 try:
     df = conn.read(worksheet=selected_tab, ttl=300, header=None).fillna("")
     st.markdown(f"<h3 style='text-align:center; color:white; font-weight:300;'>📊 {selected_tab}</h3>", unsafe_allow_html=True)
 
+    # --- УРАЖЕННЯ ---
     if "Ураження" in selected_tab:
         data_list = df.values.tolist()[1:]
         clean_rows = []
         last_date = None
-        
         for r in data_list:
-            raw_date = str(r[0]).strip()
-            target_name = str(r[1]).strip()
-            quantity = to_native(r[2])
-            verif_status = str(r[3]).strip().lower()
-
-            # Логіка "продовження дати"
+            raw_date, target_name, qty, status = str(r[0]).strip(), str(r[1]).strip(), to_native(r[2]), str(r[3])
             if raw_date != "":
                 dt = pd.to_datetime(raw_date, dayfirst=True, errors='coerce')
                 if pd.notnull(dt): last_date = dt
-            
-            if last_date and target_name != "" and quantity > 0:
-                # Рахуємо бали
+            if last_date and target_name != "" and qty > 0:
                 unit_price = POINTS_MAP.get(target_name, 0)
-                total_row_points = quantity * unit_price
-                
-                v_p, u_p = 0.0, 0.0
-                if "не верифіковано" in verif_status:
-                    match = re.search(r'(\d+)', verif_status)
-                    u_count = float(match.group(1)) if match else quantity
-                    u_p = u_count * unit_price
-                    v_p = max(0.0, total_row_points - u_p)
-                else:
-                    v_p = total_row_points
-                
-                clean_rows.append({
-                    "Дата_dt": last_date, "День": last_date.day, "Місяць": last_date.month, "Рік": last_date.year,
-                    "V": v_p, "U": u_p, "Ціль": target_name
-                })
+                total_pts = qty * unit_price
+                v_p, u_p = get_verif_data(total_pts, status)
+                # Якщо статус "не верифіковано X", рахуємо бали за ці X одиниць
+                if "не верифіковано" in status.lower():
+                    match = re.search(r'(\d+)', status)
+                    unv_qty = float(match.group(1)) if match else qty
+                    u_p = unv_qty * unit_price
+                    v_p = max(0.0, total_pts - u_p)
+                clean_rows.append({"Дата_dt": last_date, "День": last_date.day, "Місяць": last_date.month, "Рік": last_date.year, "V": v_p, "U": u_p})
 
         if clean_rows:
-            y, m_num = clean_rows[0]["Рік"], clean_rows[0]["Місяць"]
-            num_days = pd.Period(f"{y}-{m_num}").days_in_month
-            labels = [f"{d}.{str(m_num).zfill(2)}" for d in range(1, num_days + 1)]
+            y, m = clean_rows[0]["Рік"], clean_rows[0]["Місяць"]
+            labels = [f"{d}.{str(m).zfill(2)}" for d in range(1, pd.Period(f"{y}-{m}").days_in_month + 1)]
             v_vals = {l: 0.0 for l in labels}; u_vals = {l: 0.0 for l in labels}
             for r in clean_rows:
-                l = f"{r['День']}.{str(m_num).zfill(2)}"
+                l = f"{r['День']}.{str(m).zfill(2)}"
                 v_vals[l] += r["V"]; u_vals[l] += r["U"]
+            
+            # Загальна сума балів
+            total_sum = sum(v_vals.values())
+            st.metric("ЗАГАЛЬНА КІЛЬКІСТЬ ВЕРИФІКОВАНИХ БАЛІВ:", f"{int(total_sum)}")
 
             fig = go.Figure()
-            fig.add_trace(go.Bar(x=labels, y=[v_vals[l] for l in labels], name='Верифіковано (Бали)', marker_color='#444444'))
+            fig.add_trace(go.Bar(x=labels, y=[v_vals[l] for l in labels], name='Верифіковано', marker_color='#444444'))
             fig.add_trace(go.Bar(x=labels, y=[u_vals[l] for l in labels], name='Не верифіковано', marker_color='#CC0000'))
-            fig.add_trace(go.Scatter(x=labels, y=[v_vals[l] + u_vals[l] for l in labels], mode='text', text=[str(int(v_vals[l])) if v_vals[l]>0 else "" for l in labels], textposition='top center', showlegend=False, textfont=dict(color='white', size=12)))
-            fig.update_layout(barmode='stack', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white", height=450, xaxis=dict(type='category', tickangle=-45))
+            fig.add_trace(go.Scatter(x=labels, y=[v_vals[l]+u_vals[l] for l in labels], mode='text', text=[str(int(v_vals[l])) if v_vals[l]>0 else "" for l in labels], textposition='top center', showlegend=False, textfont=dict(color='black', size=13)))
+            fig.update_layout(barmode='stack', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white", xaxis=dict(type='category', tickangle=-45))
             st.plotly_chart(fig, use_container_width=True)
-            st.dataframe(df.iloc[1:, :4], use_container_width=True, hide_index=True)
-        else:
-            st.warning("Дані не знайдено. Перевірте колонку А (Дата) та B (Ціль).")
+            with st.expander("📂 ЖУРНАЛ УРАЖЕНЬ"): st.dataframe(df.iloc[1:, :4], use_container_width=True, hide_index=True)
 
-    # --- МІНУВАННЯ (БЕЗ ЗМІН) ---
+    # --- МІНУВАННЯ ---
     elif selected_tab == "Мінування":
-        # ... (тут твій код мінування)
-        st.write("Розділ мінування активний")
+        data_list = df.values.tolist()[1:]
+        clean_rows = []
+        for r in data_list:
+            try:
+                dt = pd.to_datetime(str(r[0]), dayfirst=True, errors='coerce')
+                if pd.notnull(dt):
+                    total = to_native(r[2])
+                    v, u = get_verif_data(total, r[3])
+                    clean_rows.append({"Дата_dt": dt, "День": dt.day, "Місяць": dt.month, "Рік": dt.year, "Місяць_Рік": MONTHS_UKR.get(dt.month, "M") + " " + str(dt.year), "S": dt.year*100+dt.month, "V": v, "U": u})
+            except: continue
+        if clean_rows:
+            m_opts = sorted(list(set([(r["Місяць_Рік"], r["S"]) for r in clean_rows])), key=lambda x: x[1], reverse=True)
+            sel_m = st.selectbox("Період:", [x[0] for x in m_opts])
+            m_data = [r for r in clean_rows if r["Місяць_Рік"] == sel_m]
+            y, m = m_data[0]["Рік"], m_data[0]["Місяць"]
+            labels = [f"{d}.{str(m).zfill(2)}" for d in range(1, pd.Period(f"{y}-{m}").days_in_month + 1)]
+            v_v, u_v = {l: 0.0 for l in labels}, {l: 0.0 for l in labels}
+            for r in m_data:
+                l = f"{r['День']}.{str(m).zfill(2)}"
+                v_v[l] += r["V"]; u_v[l] += r["U"]
+            fig1 = go.Figure()
+            fig1.add_trace(go.Bar(x=labels, y=[v_v[l] for l in labels], name='Верифіковано', marker_color='#444444'))
+            fig1.add_trace(go.Bar(x=labels, y=[u_v[l] for l in labels], name='Не верифіковано', marker_color='#CC0000'))
+            fig1.add_trace(go.Scatter(x=labels, y=[v_v[l]+u_v[l] for l in labels], mode='text', text=[str(int(v_v[l])) if v_v[l]>0 else "" for l in labels], textposition='top center', showlegend=False, textfont=dict(color='black', size=13)))
+            fig1.update_layout(barmode='stack', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white", xaxis=dict(type='category', tickangle=-45))
+            st.plotly_chart(fig1, use_container_width=True)
+            with st.expander("📂 АРХІВ МІНУВАННЯ"): st.dataframe(df.iloc[1:, :4], use_container_width=True, hide_index=True)
 
     # --- БРИГАДНИЙ ЗГ ---
     elif selected_tab == "Бригадний ЗГ":
-        sub = [str(x) for x in df.iloc[1].values]
-        d_rows = df.iloc[2:].values.tolist()
-        x_axis_dates = []
+        sub, d_rows = [str(x) for x in df.iloc[1].values], df.iloc[2:].values.tolist()
+        x_dates = []
         for r in d_rows:
-            try:
-                dt = pd.to_datetime(str(r[0]), dayfirst=True, errors='coerce')
-                x_axis_dates.append(dt.strftime('%d.%m') if pd.notnull(dt) else str(r[0]))
-            except: x_axis_dates.append(str(r[0]))
+            dt = pd.to_datetime(str(r[0]), dayfirst=True, errors='coerce')
+            x_dates.append(dt.strftime('%d.%m') if pd.notnull(dt) else str(r[0]))
         def bc(title, start_c):
             f = go.Figure()
             clrs = {'1 аемб': '#92D050', '2 аемб': '#A5A5A5', '3 аемб': '#4472C4', '4 аемб': '#ED7D31'}
@@ -185,9 +190,9 @@ try:
                 idx = [i for i, x in enumerate(sub) if u in x and i >= start_c and i < start_c+6]
                 if idx:
                     v = [to_native(r[idx[0]]) for r in d_rows if r[0] != ""]
-                    text_labels = [f"{int(val)}<br><span style='font-size:10px;'>{u}</span>" if val > 0 else "" for val in v]
-                    f.add_trace(go.Bar(x=x_axis_dates, y=[float(val) for val in v], name=u, marker_color=c, text=text_labels, textposition='outside', cliponaxis=False))
-            f.update_layout(title=dict(text=title, font=dict(color='white')), barmode='group', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white", height=450, showlegend=False, xaxis=dict(type='category', gridcolor='rgba(255,255,255,0.05)', tickangle=-45), yaxis=dict(gridcolor='rgba(255,255,255,0.05)'), margin=dict(t=60, b=40))
+                    text_l = [f"{int(val)}<br><span style='font-size:10px;'>{u}</span>" if val > 0 else "" for val in v]
+                    f.add_trace(go.Bar(x=x_dates, y=[float(val) for val in v], name=u, marker_color=c, text=text_l, textposition='outside'))
+            f.update_layout(title=dict(text=title, font=dict(color='white')), barmode='group', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white", showlegend=False, xaxis=dict(type='category', tickangle=-45))
             return f
         st.plotly_chart(bc("🏆 ЗАГАЛЬНИЙ РЕЗУЛЬТАТ", 0), use_container_width=True)
 
@@ -195,8 +200,8 @@ try:
     elif selected_tab == "Е-Бали":
         d_list = df.values.tolist()[1:]
         f = go.Figure()
-        f.add_trace(go.Bar(x=[str(r[0]) for r in d_list], y=[to_native(r[2]) for r in d_list], name='Поточний', marker_color='#92D050', textposition='outside'))
-        f.update_layout(barmode='group', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white", height=500)
+        f.add_trace(go.Bar(x=[str(r[0]) for r in d_list], y=[to_native(r[2]) for r in d_list], name='Поточний', marker_color='#92D050', text=[str(int(to_native(r[2]))) for r in d_list], textposition='outside', textfont=dict(color='black')))
+        f.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white")
         st.plotly_chart(f, use_container_width=True)
 
 except Exception as e:
