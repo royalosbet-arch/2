@@ -32,7 +32,6 @@ def check_password():
 
 if not check_password(): st.stop()
 
-# --- 2. ДИЗАЙН ---
 def set_design(bin_file):
     try:
         with open(bin_file, 'rb') as f: data = f.read()
@@ -43,7 +42,6 @@ def set_design(bin_file):
 
 set_design('background.jpg')
 
-# --- 3. ПІДКЛЮЧЕННЯ ---
 conn = st.connection("gsheets", type=GSheetsConnection)
 st.sidebar.title("🛠️ НАВІГАЦІЯ")
 category = st.sidebar.radio("Оберіть напрямок:", ["⚔️ Бригадні звіти", "📈 Рейтинг та Бали", "🧨 Мінування", "🔥 Ураження", "📡 Спец. розділи"])
@@ -61,7 +59,6 @@ if st.sidebar.button('🔄 ОНОВИТИ ДАНІ'):
     st.cache_data.clear()
     st.rerun()
 
-# --- 4. ФУНКЦІЇ ---
 def to_native(val):
     try:
         f_val = float(str(val).replace(',', '.'))
@@ -73,8 +70,7 @@ def get_verif_data(total, text):
     if "не верифіковано" in txt:
         match = re.search(r'(\d+)', txt)
         unverif = float(match.group(1)) if match else 0.0
-        verif = max(0.0, total - unverif)
-        return verif, unverif
+        return max(0.0, total - unverif), unverif
     elif "верифіковано" in txt or txt == "так":
         return total, 0.0
     return 0.0, total
@@ -87,7 +83,6 @@ try:
     if selected_tab == "Мінування":
         data_list = df.values.tolist()
         rows = data_list[1:]
-        
         clean_rows = []
         for r in rows:
             try: 
@@ -99,20 +94,15 @@ try:
                         "Дата_dt": dt, "День": dt.day, "Місяць": dt.month, "Рік": dt.year,
                         "Місяць_Рік": MONTHS_UKR.get(dt.month, "M") + " " + str(dt.year),
                         "Сорт": dt.year * 100 + dt.month,
-                        "Верифіковано": verif, "НеВерифіковано": unverif,
-                        "БК": str(r[1]), "Статус": str(r[3])
+                        "Верифіковано": verif, "НеВерифіковано": unverif
                     })
             except: continue
 
         if clean_rows:
-            # Вибір місяця
             all_m = sorted(list(set([r["Місяць_Рік"] for r in clean_rows])), reverse=True)
-            sel_m = st.selectbox("Оберіть місяць для детального перегляду:", all_m)
-            
+            sel_m = st.selectbox("Оберіть місяць:", all_m)
             m_data = [r for r in clean_rows if r["Місяць_Рік"] == sel_m]
             y, m_num = m_data[0]["Рік"], m_data[0]["Місяць"]
-            
-            # Повний календар місяця (1 - 31)
             num_days = pd.Period(f"{y}-{m_num}").days_in_month
             labels = [f"{d}.{str(m_num).zfill(2)}" for d in range(1, num_days + 1)]
             v_vals = {l: 0.0 for l in labels}
@@ -123,50 +113,46 @@ try:
             
             # ГРАФІК 1: ПО ДНЯХ
             fig1 = go.Figure()
-            fig1.add_trace(go.Bar(
-                x=labels, y=[v_vals[l] for l in labels],
-                name='Верифіковано', marker_color='#555555', # ТЕМНО СІРИЙ
-                text=[str(int(v_vals[l])) if v_vals[l]>0 else "" for l in labels],
-                textposition='outside', textfont=dict(color='white')
+            # Сірий (Верифіковано)
+            fig1.add_trace(go.Bar(x=labels, y=[v_vals[l] for l in labels], name='Верифіковано', marker_color='#444444'))
+            # Червоний (Не верифіковано)
+            fig1.add_trace(go.Bar(x=labels, y=[u_vals[l] for l in labels], name='Не верифіковано', marker_color='#CC0000'))
+            
+            # Шар підписів (Тільки число верифікованих над усім стовпцем)
+            fig1.add_trace(go.Scatter(
+                x=labels, y=[v_vals[l] + u_vals[l] for l in labels],
+                mode='text', text=[str(int(v_vals[l])) if v_vals[l]>0 else "" for l in labels],
+                textposition='top center', showlegend=False, textfont=dict(color='white', size=13)
             ))
-            fig1.add_trace(go.Bar(
-                x=labels, y=[u_vals[l] for l in labels],
-                name='Не верифіковано', marker_color='#FF4B4B' # ЧЕРВОНИЙ
-            ))
-            fig1.update_layout(barmode='stack', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white", height=450, xaxis=dict(type='category', tickangle=-45))
+            
+            fig1.update_layout(barmode='stack', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white", height=450, 
+                              xaxis=dict(type='category', tickangle=-45, gridcolor='rgba(255,255,255,0.05)'),
+                              yaxis=dict(gridcolor='rgba(255,255,255,0.05)'), margin=dict(t=50))
             st.plotly_chart(fig1, use_container_width=True)
 
             # ГРАФІК 2: ПІДСУМОК ПО МІСЯЦЯХ
             st.markdown("### 📈 Динаміка по місяцях")
-            m_totals, m_unverif, m_sort = {}, {}, {}
+            m_t, m_u, m_s = {}, {}, {}
             for r in clean_rows:
                 mn = r["Місяць_Рік"]
-                m_totals[mn] = m_totals.get(mn, 0) + r["Верифіковано"]
-                m_unverif[mn] = m_unverif.get(mn, 0) + r["НеВерифіковано"]
-                m_sort[mn] = r["Сорт"]
-            
-            sorted_m = sorted(m_totals.keys(), key=lambda x: m_sort[x])
+                m_t[mn] = m_t.get(mn, 0) + r["Верифіковано"]
+                m_u[mn] = m_u.get(mn, 0) + r["НеВерифіковано"]
+                m_s[mn] = r["Сорт"]
+            sorted_m = sorted(m_t.keys(), key=lambda x: m_s[x])
             
             fig2 = go.Figure()
-            fig2.add_trace(go.Bar(
-                x=sorted_m, y=[m_totals[mx] for mx in sorted_m], 
-                name="Верифіковано", marker_color='#555555', # ТЕМНО СІРИЙ
-                text=[str(int(m_totals[mx])) for mx in sorted_m],
-                textposition='outside', textfont=dict(color='white', size=14)
-            ))
-            fig2.add_trace(go.Bar(
-                x=sorted_m, y=[m_unverif[mx] for mx in sorted_m], 
-                name="Не верифіковано", marker_color='#FF4B4B' # ЧЕРВОНИЙ
+            fig2.add_trace(go.Bar(x=sorted_m, y=[m_t[mx] for mx in sorted_m], name="Верифіковано", marker_color='#444444'))
+            fig2.add_trace(go.Bar(x=sorted_m, y=[m_u[mx] for mx in sorted_m], name="Не верифіковано", marker_color='#CC0000'))
+            
+            # Підписи над місяцями
+            fig2.add_trace(go.Scatter(
+                x=sorted_m, y=[m_t[mx] + m_u[mx] for mx in sorted_m],
+                mode='text', text=[str(int(m_t[mx])) for mx in sorted_m],
+                textposition='top center', showlegend=False, textfont=dict(color='white', size=15)
             ))
             fig2.update_layout(barmode='stack', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white", height=450)
             st.plotly_chart(fig2, use_container_width=True)
 
-            with st.expander("📂 АРХІВ ЗАПИСІВ"):
-                simple_df = pd.DataFrame([{ 
-                    "Дата": r["Дата_dt"].strftime('%d.%m.%Y'), "БК": r["БК"], 
-                    "Верифіковано": int(r["Верифіковано"]), "Не вер-но": int(r["НеВерифіковано"]), "Статус": r["Статус"] 
-                } for r in clean_rows])
-                st.write(simple_df.astype(str))
         else: st.warning("Дані не знайдено.")
 
     # Інші розділи (Бригадний, Е-Бали)
