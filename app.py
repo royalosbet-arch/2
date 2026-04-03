@@ -8,7 +8,7 @@ import re
 # --- 1. НАЛАШТУВАННЯ СТОРІНКИ ---
 st.set_page_config(page_title="СИТУАЦІЙНИЙ ЦЕНТР 1 аемб", layout="wide", page_icon="🛡️")
 
-# АКТУАЛЬНИЙ СЛОВНИК БАЛІВ
+# ПОВНИЙ АКТУАЛЬНИЙ СЛОВНИК БАЛІВ
 POINTS_MAP = {
     "О/С 200": 12, "О/С 300": 8, "Молнія": 10, "Укриття": 1, "Фортифікація": 1,
     "Антена": 4, "ФПВ": 6, "Танк": 40, "Бомбер": 6, "РЛС": 50, "САУ": 30,
@@ -24,6 +24,10 @@ def get_base64_image(image_path):
     except: return None
 
 USER_PASSWORD = "2887" 
+MONTHS_UKR = {
+    1: "Січень", 2: "Лютий", 3: "Березень", 4: "Квітень", 5: "Травень", 6: "Червень",
+    7: "Липень", 8: "Серпень", 9: "Вересень", 10: "Жовтень", 11: "Листопад", 12: "Грудень"
+}
 
 # --- 2. ЕКРАН ВХОДУ ---
 def check_password():
@@ -33,15 +37,17 @@ def check_password():
         col_l, col_c, col_r = st.columns([1.2, 1.5, 1.2])
         with col_c:
             if logo_base64:
-                st.markdown(f"<div style='text-align: center;'><img src='data:image/png;base64,{logo_base64}' style='max-width: 220px; border-radius: 15px;'></div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='text-align: center; margin-bottom: -20px;'><img src='data:image/png;base64,{logo_base64}' style='max-width: 220px; border-radius: 15px;'></div>", unsafe_allow_html=True)
             st.markdown(f"""
-                <div style='background:rgba(255,255,255,0.04); padding: 30px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.15); text-align: center;'>
-                    <h2 style='color:white; margin:0;'>1 аемб</h2>
-                    <p style='color:#ffd700; font-weight: 600;'>77 ОАЕМБр • ДШВ ЗСУ 🇺🇦</p>
+                <div style='background:rgba(255,255,255,0.04); padding: 40px 30px 30px 30px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.15); text-align: center;'>
+                    <h2 style='color:white; margin-bottom: 0; font-weight: 700; font-size: 34px;'>1 аемб</h2>
+                    <p style='color:#ffd700; font-size: 16px; margin-top: 5px; font-weight: 600;'>77 ОАЕМБр • ДШВ ЗСУ 🇺🇦</p>
+                    <hr style='border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 25px 0;'>
+                    <p style='color:#ffffff; font-size: 13px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase;'>СИТУАЦІЙНИЙ ЦЕНТР БАТАЛЬЙОНУ</p>
                 </div>
             """, unsafe_allow_html=True)
-            pwd = st.text_input("КОД ДОСТУПУ:", type="password")
-            if st.button("УВІЙТИ"):
+            pwd = st.text_input("КОД ДОСТУПУ:", type="password", placeholder="Введіть пароль...")
+            if st.button("УВІЙТИ В СИСТЕМУ"):
                 if pwd == USER_PASSWORD:
                     st.session_state["password_correct"] = True
                     st.rerun()
@@ -51,6 +57,7 @@ def check_password():
 
 if not check_password(): st.stop()
 
+# --- 3. ДИЗАЙН ---
 def set_design(bin_file):
     try:
         with open(bin_file, 'rb') as f: data = f.read()
@@ -63,14 +70,16 @@ def set_design(bin_file):
         [data-testid="stTable"], .stDataFrame {{ background-color: transparent !important; }}
         table {{ background-color: rgba(255,255,255,0.05) !important; color: white !important; border-radius: 10px; width: 100%; }}
         thead tr th {{ background-color: rgba(0,0,0,0.4) !important; color: #ffd700 !important; }}
+        [data-testid="stSidebar"] {{ background-color: rgba(14, 17, 23, 0.95); }}
         [data-testid="stMetricValue"] {{ color: #ffd700 !important; font-size: 36px !important; }}
         </style>
     """, unsafe_allow_html=True)
 
 set_design('background.jpg')
 
-# --- 4. ПІДКЛЮЧЕННЯ ---
+# --- 4. ПІДКЛЮЧЕННЯ ТА УТИЛІТИ ---
 conn = st.connection("gsheets", type=GSheetsConnection)
+st.sidebar.markdown("### 🛠️ УПРАВЛІННЯ")
 category = st.sidebar.radio("Напрямок:", ["⚔️ Бригадні звіти", "🧨 Мінування", "🔥 Ураження"])
 
 if st.sidebar.button('🔄 ОНОВИТИ ДАНІ'):
@@ -92,8 +101,9 @@ def calculate_verif_data(qty, target, status):
     else: v_q = qty
     return v_q * unit_p, v_q
 
-# --- 5. ВІДОБРАЖЕННЯ ---
+# --- 5. ВІДОБРАЖЕННЯ ДАНИХ ---
 try:
+    # --- КАТЕГОРІЯ: БРИГАДНІ ЗВІТИ ---
     if category == "⚔️ Бригадні звіти":
         df = conn.read(worksheet="Бригадний1", ttl=300, header=None).fillna("")
         st.markdown("<h3 style='text-align:center; color:white;'>⚔️ ЗАГАЛЬНОБРИГАДНИЙ ЗВІТ</h3>", unsafe_allow_html=True)
@@ -102,7 +112,7 @@ try:
         units_cols = {
             "1аемб": [0,1,2,3,4], "2аемб": [5,6,7,8,9],
             "3аемб": [10,11,12,13,14], "4аемб": [15,16,17,18,19],
-            "ЗРДН": [20,21,22,23] 
+            "ЗРДН": [20,21,22,23] # 4 колонки для ЗРДН
         }
         clrs = {'1аемб': '#92D050', '2аемб': '#A5A5A5', '3аемб': '#4472C4', '4аемб': '#ED7D31', 'ЗРДН': '#FFC000'}
         mine_clr = "#7030A0" 
@@ -118,18 +128,22 @@ try:
                     if pd.notnull(dt): last_dt = dt
                 if not last_dt: continue
 
+                # Ураження
                 if target != "" and target != "Ціль":
                     v_p, v_q = calculate_verif_data(to_native(row[cols[2]]), target, str(row[cols[3]]))
-                    if v_p >= 0: clean_results.append({"Дата": last_dt, "Бат": u_name, "Ціль": target, "Бали_У": v_p, "Бали_М": 0.0, "Шт_всього": to_native(row[cols[2]]), "Шт_вериф": v_q})
+                    if v_p >= 0:
+                        clean_results.append({"Дата": last_dt, "Бат": u_name, "Ціль": target, "Бали_У": v_p, "Бали_М": 0.0, "Шт_всього": to_native(row[cols[2]]), "Шт_вериф": v_q})
                 
+                # Мінування
                 if len(cols) == 5:
                     m_qty = to_native(row[cols[4]])
-                    if m_qty > 0: clean_results.append({"Дата": last_dt, "Бат": u_name, "Ціль": "Мінування", "Бали_У": 0.0, "Бали_М": m_qty, "Шт_всього": m_qty, "Шт_вериф": m_qty})
+                    if m_qty > 0:
+                        clean_results.append({"Дата": last_dt, "Бат": u_name, "Ціль": "Мінування", "Бали_У": 0.0, "Бали_М": m_qty, "Шт_всього": m_qty, "Шт_вериф": m_qty})
 
         if clean_results:
             all_dates = sorted(list(set([r["Дата"] for r in clean_results])))
             x_labs = [d.strftime('%d.%m') for d in all_dates]
-            st.metric("ЗАГАЛЬНИЙ РЕЗУЛЬТАТ БРИГАДИ:", f"{int(sum(r['Бали_У'] + r['Бали_М'] for r in clean_results))}")
+            st.metric("ЗАГАЛЬНИЙ РЕЗУЛЬТАТ БРИГАДИ (УРАЖЕННЯ + МІНУВАННЯ):", f"{int(sum(r['Бали_У'] + r['Бали_М'] for r in clean_results))}")
 
             tab_cum, tab_daily = st.tabs(["📈 Прогрес за місяць", "📊 Статистика по днях"])
             
@@ -148,24 +162,10 @@ try:
                             y_u.append(d_u); y_m.append(d_m)
                     
                     if (sum(y_u) + sum(y_m)) > 0:
-                        # Написи: Сума + назва Бату
                         text_labels = [f"<b>{int(u+m)}</b><br>{b}" if (u+m) > 0 else "" for u, m in zip(y_u, y_m)]
-                        
-                        # Шар 1: Ураження
                         fig.add_trace(go.Bar(x=x_labs, y=y_u, name=f"{b} У", marker_color=clrs.get(b), offsetgroup=b, showlegend=False))
-                        # Шар 2: Мінування (Шапка) + Текст
-                        fig.add_trace(go.Bar(
-                            x=x_labs, y=y_m, name=f"{b} М", marker_color=mine_clr, 
-                            offsetgroup=b, base=y_u, showlegend=False,
-                            text=text_labels, textposition='outside', cliponaxis=False,
-                            textfont=dict(color='white', size=11)
-                        ))
-                fig.update_layout(
-                    barmode='group', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', 
-                    font_color="white", height=500, margin=dict(t=80),
-                    xaxis=dict(type='category', gridcolor='rgba(255,255,255,0.05)'),
-                    yaxis=dict(gridcolor='rgba(255,255,255,0.05)')
-                )
+                        fig.add_trace(go.Bar(x=x_labs, y=y_m, name=f"{b} М", marker_color=mine_clr, offsetgroup=b, base=y_u, showlegend=False, text=text_labels, textposition='outside', cliponaxis=False, textfont=dict(color='white', size=11)))
+                fig.update_layout(barmode='group', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white", height=500, margin=dict(t=80), xaxis=dict(type='category'))
                 return fig
 
             with tab_cum: st.plotly_chart(build_chart("cum"), use_container_width=True)
@@ -184,6 +184,7 @@ try:
                 })
             st.table(pd.DataFrame(u_sum).sort_values(by="Бали", ascending=False))
 
+    # --- КАТЕГОРІЯ: МІНУВАННЯ ---
     elif category == "🧨 Мінування":
         df = conn.read(worksheet="Мінування", ttl=300, header=None).fillna("")
         data_list = df.values.tolist()[1:]; clean_rows = []
@@ -207,8 +208,9 @@ try:
             f_m.update_layout(barmode='stack', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white", xaxis=dict(type='category'))
             st.plotly_chart(f_m, use_container_width=True)
 
+    # --- КАТЕГОРІЯ: УРАЖЕННЯ ---
     elif category == "🔥 Ураження":
-        urazh_tabs = ["Ураження 04.2026", "Ураження 03.2026"]
+        urazh_tabs = ["Ураження 04.2026", "Ураження 03.2026", "Ураження 02.2026"]
         selected_tab = st.selectbox("Період:", urazh_tabs)
         df = conn.read(worksheet=selected_tab, ttl=300, header=None).fillna("")
         data_list = df.values.tolist()[1:]; clean_rows, last_dt = [], None
@@ -223,15 +225,19 @@ try:
             st.metric("БАЛИ БАТАЛЬЙОНУ (ВЕРИФ):", f"{int(sum(r['V'] for r in clean_rows))}")
             y, m = clean_rows[0]["Дата"].year, clean_rows[0]["Дата"].month
             labs = [f"{d}.{str(m).zfill(2)}" for d in range(1, pd.Period(f"{y}-{m}").days_in_month + 1)]
-            v_v, u_v = {l: 0.0 for l in labs}, {l: 0.0 for l in labs}
+            v_v, u_v, obj_stats = {l: 0.0 for l in labs}, {l: 0.0 for l in labs}, {}
             for r in clean_rows:
-                l = f"{r['Дата'].day}.{str(m).zfill(2)}"
+                l = f"{r['Дата'].day}.{str(r['Дата'].month).zfill(2)}"
                 v_v[l] += r["V"]; u_v[l] += r["U"]
+                n = r["Ціль"]
+                if n not in obj_stats: obj_stats[n] = [0, 0, 0]
+                obj_stats[n][0]+=r["Q"]; obj_stats[n][1]+=r["QV"]; obj_stats[n][2]+=r["V"]
             f_u = go.Figure()
             f_u.add_trace(go.Bar(x=labs, y=[v_v[l] for l in labs], marker_color='#444444'))
             f_u.add_trace(go.Bar(x=labs, y=[u_v[l] for l in labs], marker_color='#CC0000'))
             f_u.update_layout(barmode='stack', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white", xaxis=dict(type='category'))
             st.plotly_chart(f_u, use_container_width=True)
+            st.table(pd.DataFrame([{"Тип цілі": k, "Всього (шт)": int(v[0]), "Верифіковано (шт)": int(v[1]), "Бали": int(v[2])} for k, v in sorted(obj_stats.items(), key=lambda x: x[1][2], reverse=True)]))
 
 except Exception as e:
     st.error(f"Помилка: {e}")
