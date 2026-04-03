@@ -69,7 +69,6 @@ def to_native(val):
     except: return 0.0
 
 def get_verif_data(total, text):
-    """Повертає (Верифіковано, Не верифіковано)"""
     txt = str(text).lower().strip()
     if "не верифіковано" in txt:
         match = re.search(r'(\d+)', txt)
@@ -97,64 +96,49 @@ try:
                     total = to_native(r[2])
                     verif, unverif = get_verif_data(total, r[3])
                     clean_rows.append({
-                        "Дата_dt": dt,
-                        "День": dt.day, "Місяць": dt.month, "Рік": dt.year,
+                        "Дата_dt": dt, "День": dt.day, "Місяць": dt.month, "Рік": dt.year,
                         "Місяць_Рік": MONTHS_UKR.get(dt.month, "M") + " " + str(dt.year),
                         "Сорт": dt.year * 100 + dt.month,
-                        "Верифіковано": verif,
-                        "НеВерифіковано": unverif,
-                        "БК": str(r[1]),
-                        "Статус": str(r[3])
+                        "Верифіковано": verif, "НеВерифіковано": unverif,
+                        "БК": str(r[1]), "Статус": str(r[3])
                     })
             except: continue
 
         if clean_rows:
+            # Вибір місяця
             all_m = sorted(list(set([r["Місяць_Рік"] for r in clean_rows])), reverse=True)
-            sel_m = st.selectbox("Оберіть місяць:", all_m)
+            sel_m = st.selectbox("Оберіть місяць для детального перегляду:", all_m)
             
             m_data = [r for r in clean_rows if r["Місяць_Рік"] == sel_m]
-            y, m = m_data[0]["Рік"], m_data[0]["Місяць"]
+            y, m_num = m_data[0]["Рік"], m_data[0]["Місяць"]
             
-            # Повний календар
-            num_days = pd.Period(f"{y}-{m}").days_in_month
-            labels = [f"{d}.{str(m).zfill(2)}" for d in range(1, num_days + 1)]
-            
+            # Повний календар місяця (1 - 31)
+            num_days = pd.Period(f"{y}-{m_num}").days_in_month
+            labels = [f"{d}.{str(m_num).zfill(2)}" for d in range(1, num_days + 1)]
             v_vals = {l: 0.0 for l in labels}
             u_vals = {l: 0.0 for l in labels}
-            
             for r in m_data:
-                l = f"{r['День']}.{str(m).zfill(2)}"
-                v_vals[l] += r["Верифіковано"]
-                u_vals[l] += r["НеВерифіковано"]
+                l = f"{r['День']}.{str(m_num).zfill(2)}"
+                v_vals[l] += r["Верифіковано"]; u_vals[l] += r["НеВерифіковано"]
             
-            # ГРАФІК STACKED BAR
+            # ГРАФІК 1: ПО ДНЯХ
             fig1 = go.Figure()
-            # Помаранчевий (Верифіковано)
             fig1.add_trace(go.Bar(
                 x=labels, y=[v_vals[l] for l in labels],
-                name='Верифіковано', marker_color='#ED7D31',
+                name='Верифіковано', marker_color='#555555', # ТЕМНО СІРИЙ
                 text=[str(int(v_vals[l])) if v_vals[l]>0 else "" for l in labels],
-                textposition='outside', textfont=dict(color='white', size=12)
+                textposition='outside', textfont=dict(color='white')
             ))
-            # Червоний (Не верифіковано)
             fig1.add_trace(go.Bar(
                 x=labels, y=[u_vals[l] for l in labels],
-                name='Не верифіковано', marker_color='#FF4B4B'
+                name='Не верифіковано', marker_color='#FF4B4B' # ЧЕРВОНИЙ
             ))
-            
-            fig1.update_layout(
-                barmode='stack', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-                font_color="white", height=450, showlegend=True,
-                xaxis=dict(type='category', tickmode='array', tickvals=labels, tickangle=-45),
-                margin=dict(l=20, r=20, t=40, b=80)
-            )
+            fig1.update_layout(barmode='stack', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white", height=450, xaxis=dict(type='category', tickangle=-45))
             st.plotly_chart(fig1, use_container_width=True)
 
-            # Підсумок по місяцях (теж Stacked)
+            # ГРАФІК 2: ПІДСУМОК ПО МІСЯЦЯХ
             st.markdown("### 📈 Динаміка по місяцях")
-            m_totals = {}
-            m_unverif = {}
-            m_sort = {}
+            m_totals, m_unverif, m_sort = {}, {}, {}
             for r in clean_rows:
                 mn = r["Місяць_Рік"]
                 m_totals[mn] = m_totals.get(mn, 0) + r["Верифіковано"]
@@ -164,18 +148,23 @@ try:
             sorted_m = sorted(m_totals.keys(), key=lambda x: m_sort[x])
             
             fig2 = go.Figure()
-            fig2.add_trace(go.Bar(x=sorted_m, y=[m_totals[mx] for mx in sorted_m], name="Верифіковано", marker_color='#ED7D31'))
-            fig2.add_trace(go.Bar(x=sorted_m, y=[m_unverif[mx] for mx in sorted_m], name="Не верифіковано", marker_color='#FF4B4B'))
-            fig2.update_layout(barmode='stack', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white")
+            fig2.add_trace(go.Bar(
+                x=sorted_m, y=[m_totals[mx] for mx in sorted_m], 
+                name="Верифіковано", marker_color='#555555', # ТЕМНО СІРИЙ
+                text=[str(int(m_totals[mx])) for mx in sorted_m],
+                textposition='outside', textfont=dict(color='white', size=14)
+            ))
+            fig2.add_trace(go.Bar(
+                x=sorted_m, y=[m_unverif[mx] for mx in sorted_m], 
+                name="Не верифіковано", marker_color='#FF4B4B' # ЧЕРВОНИЙ
+            ))
+            fig2.update_layout(barmode='stack', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white", height=450)
             st.plotly_chart(fig2, use_container_width=True)
 
             with st.expander("📂 АРХІВ ЗАПИСІВ"):
                 simple_df = pd.DataFrame([{ 
-                    "Дата": r["Дата_dt"].strftime('%d.%m.%Y'), 
-                    "БК": r["БК"], 
-                    "Верифіковано": int(r["Верифіковано"]),
-                    "Не вер-но": int(r["НеВерифіковано"]),
-                    "Статус": r["Статус"] 
+                    "Дата": r["Дата_dt"].strftime('%d.%m.%Y'), "БК": r["БК"], 
+                    "Верифіковано": int(r["Верифіковано"]), "Не вер-но": int(r["НеВерифіковано"]), "Статус": r["Статус"] 
                 } for r in clean_rows])
                 st.write(simple_df.astype(str))
         else: st.warning("Дані не знайдено.")
@@ -202,8 +191,8 @@ try:
         d_list = df.values.tolist()[1:]
         dates = [str(r[0]) for r in d_list]
         f = go.Figure()
-        f.add_trace(go.Bar(x=dates, y=[float(to_native(r[1])) for r in d_list], name='Попередній', marker_color='#A5A5A5', textposition='outside'))
-        f.add_trace(go.Bar(x=dates, y=[float(to_native(r[2])) for r in d_list], name='Поточний', marker_color='#92D050', textposition='outside'))
+        f.add_trace(go.Bar(x=dates, y=[float(to_native(r[1])) for r in d_list], name='Попередній', marker_color='#A5A5A5', text=[str(int(to_native(r[1]))) for r in d_list], textposition='outside'))
+        f.add_trace(go.Bar(x=dates, y=[float(to_native(r[2])) for r in d_list], name='Поточний', marker_color='#92D050', text=[str(int(to_native(r[2]))) for r in d_list], textposition='outside'))
         f.update_layout(barmode='group', paper_bgcolor='rgba(0,0,0,0)', font_color="white", height=500)
         st.plotly_chart(f, use_container_width=True)
         st.write(df.iloc[1:].T.astype(str))
