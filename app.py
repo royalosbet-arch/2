@@ -4,6 +4,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import base64
 import re
+from datetime import datetime
 
 # =================================================================
 # 1. НАЛАШТУВАННЯ ТА КОНСТАНТИ
@@ -73,8 +74,8 @@ if "password_correct" not in st.session_state:
                 <p style='color:white; font-size: 13px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; margin-top: 15px;'>СИТУАЦІЙНИЙ ЦЕНТР БАТАЛЬЙОНУ</p>
             </div>
         """, unsafe_allow_html=True)
-        pwd = st.text_input("КОД ДОСТУПУ:", type="password")
-        if st.button("УВІЙТИ") and pwd == USER_PASSWORD:
+        pwd = st.text_input("ВВЕДІТЬ КОД ДОСТУПУ:", type="password")
+        if st.button("УВІЙТИ В СИСТЕМУ") and pwd == USER_PASSWORD:
             st.session_state["password_correct"] = True
             st.rerun()
     st.stop()
@@ -108,58 +109,59 @@ try:
         st.markdown("<h3 style='text-align:center; color:white;'>⚔️ ЗАГАЛЬНОБРИГАДНИЙ МОНІТОРИНГ</h3>", unsafe_allow_html=True)
         unit_names = ["1аемб", "2аемб", "3аемб", "4аемб", "ЗРДН"]
         all_results = []
+        current_month = 4
+        current_year = 2026
 
         for b_name in unit_names:
             try:
                 if b_name == "1аемб":
-                    # Ураження для 1аемб
+                    # Ураження 1аемб
                     df_u = conn.read(worksheet="Ураження 04.2026", ttl=300, header=None).fillna("")
                     u_data = df_u.values.tolist()
-                    last_dt = None
-                    for row in u_data[1:]:
-                        if str(row[0]).strip() != "":
-                            dt = pd.to_datetime(str(row[0]), dayfirst=True, errors='coerce')
-                            if pd.notnull(dt): last_dt = dt
-                        if last_dt and str(row[1]).strip() not in ["", "-", "•", ".", "Ціль"]:
-                            vp, vq = get_urazh_data(to_native(row[2]), str(row[1]), str(row[3]))
-                            if vp >= 0 or vq >= 0:
-                                all_results.append({"D": last_dt, "B": b_name, "T": str(row[1]), "PU": vp, "PM": 0.0, "QT": to_native(row[2]), "QV": vq})
-                    # Мінування для 1аемб
+                    l_dt = None
+                    for r in u_data[1:]:
+                        if str(r[0]).strip() != "":
+                            dt = pd.to_datetime(str(r[0]), dayfirst=True, errors='coerce')
+                            if pd.notnull(dt): l_dt = dt
+                        if l_dt and str(r[1]).strip() not in ["", "-", "•", ".", "Ціль"]:
+                            vp, vq = get_urazh_data(to_native(r[2]), str(r[1]), str(r[3]))
+                            all_results.append({"D": l_dt, "B": b_name, "T": str(r[1]), "PU": vp, "PM": 0.0, "QT": to_native(r[2]), "QV": vq})
+                    # Мінування 1аемб
                     df_m = conn.read(worksheet="Мінування", ttl=300, header=None).fillna("")
                     m_data = df_m.values.tolist()
-                    for row in m_data[1:]:
-                        dt_m = pd.to_datetime(str(row[0]), dayfirst=True, errors='coerce')
+                    for r in m_data[1:]:
+                        dt_m = pd.to_datetime(str(r[0]), dayfirst=True, errors='coerce')
                         if pd.notnull(dt_m):
-                            vq_m, _ = get_mine_data(to_native(row[2]), str(row[3]))
+                            vq_m, _ = get_mine_data(to_native(r[2]), str(r[3]))
                             if vq_m > 0:
                                 all_results.append({"D": dt_m, "B": b_name, "T": "Мінування", "PU": 0.0, "PM": vq_m, "QT": vq_m, "QV": vq_m})
-                
                 else:
-                    # Дані для 2-4 аемб та ЗРДН з їхніх листі
                     df_unit = conn.read(worksheet=b_name, ttl=300, header=None).fillna("")
                     u_rows = df_unit.values.tolist()
-                    last_dt = None
-                    for row in u_rows[1:]:
-                        if str(row[0]).strip() != "":
-                            dt = pd.to_datetime(str(row[0]), dayfirst=True, errors='coerce')
-                            if pd.notnull(dt): last_dt = dt
-                        if not last_dt: continue
-                        
-                        target = str(row[1]).strip()
+                    l_dt = None
+                    for r in u_rows[1:]:
+                        if str(r[0]).strip() != "":
+                            dt = pd.to_datetime(str(r[0]), dayfirst=True, errors='coerce')
+                            if pd.notnull(dt): l_dt = dt
+                        if not l_dt: continue
+                        target = str(r[1]).strip()
                         if target not in ["", "-", "•", ".", "Ціль"]:
-                            vp, vq = get_urazh_data(to_native(row[2]), target, str(row[3]))
-                            all_results.append({"D": last_dt, "B": b_name, "T": target, "PU": vp, "PM": 0.0, "QT": to_native(row[2]), "QV": vq})
-                        
-                        if b_name != "ЗРДН" and len(row) > 4:
-                            m_v, _ = get_mine_data(to_native(row[4]), "Верифіковано")
-                            if m_v > 0:
-                                all_results.append({"D": last_dt, "B": b_name, "T": "Мінування", "PU": 0.0, "PM": m_v, "QT": m_v, "QV": m_v})
+                            vp, vq = get_urazh_data(to_native(r[2]), target, str(r[3]))
+                            all_results.append({"D": l_dt, "B": b_name, "T": target, "PU": vp, "PM": 0.0, "QT": to_native(r[2]), "QV": vq})
+                        if b_name != "ЗРДН" and len(r) > 4:
+                            vq_m, _ = get_mine_data(to_native(r[4]), "Верифіковано")
+                            if vq_m > 0:
+                                all_results.append({"D": l_dt, "B": b_name, "T": "Мінування", "PU": 0.0, "PM": vq_m, "QT": vq_m, "QV": vq_m})
             except: continue
 
         if all_results:
-            all_dates = sorted(list(set([r["D"] for r in all_results])))
+            # ФІЛЬТР: Тільки поточний місяць
+            filtered_results = [r for r in all_results if r["D"].month == current_month and r["D"].year == current_year]
+            if not filtered_results: filtered_results = all_results # Якщо порожньо, показуємо все
+            
+            all_dates = sorted(list(set([r["D"] for r in filtered_results])))
             x_labs = [d.strftime('%d.%m') for d in all_dates]
-            st.metric("БРИГАДА (ВЕРИФІКОВАНО):", int(sum(r["PU"] + r["PM"] for r in all_results)))
+            st.metric("БРИГАДА (ВЕРИФІКОВАНО ЗА КВІТЕНЬ):", int(sum(r["PU"] + r["PM"] for r in filtered_results)))
 
             t1, t2 = st.tabs(["📈 Накопичувальний прогрес", "📊 Статистика за день"])
             
@@ -169,18 +171,17 @@ try:
                     yu, ym = [], []
                     acc_u, acc_m = 0.0, 0.0
                     for d in all_dates:
-                        du = sum(r["PU"] for r in all_results if r["D"] == d and r["B"] == b)
-                        dm = sum(r["PM"] for r in all_results if r["D"] == d and r["B"] == b)
+                        du = sum(r["PU"] for r in filtered_results if r["D"] == d and r["B"] == b)
+                        dm = sum(r["PM"] for r in filtered_results if r["D"] == d and r["B"] == b)
                         if mode == "cum":
                             acc_u += du; acc_m += dm
                             yu.append(acc_u); ym.append(acc_m)
                         else:
                             yu.append(du); ym.append(dm)
-                    
                     if (sum(yu) + sum(ym)) > 0:
                         lbls = [f"<b>{int(u+m)}</b><br>{b}" if (u+m) > 0 else "" for u, m in zip(yu, ym)]
                         fig.add_trace(go.Bar(x=x_labs, y=yu, marker_color=CLRS[b], offsetgroup=b, showlegend=False))
-                        fig.add_trace(go.Bar(x=x_labs, y=ym, marker_color=MINE_CLR, offsetgroup=b, base=yu, showlegend=False, text=lbls, textposition='outside', cliponaxis=False, textfont=dict(color='white')))
+                        fig.add_trace(go.Bar(x=x_labs, y=ym, marker_color=MINE_CLR, offsetgroup=b, base=yu, showlegend=False, text=lbls, textposition='outside', cliponaxis=False, textfont=dict(color='white', size=11)))
                 fig.update_layout(barmode='group', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white", height=500, xaxis=dict(type='category'), margin=dict(t=80))
                 return fig
             with t1: st.plotly_chart(draw_chart("cum"), use_container_width=True)
@@ -188,7 +189,7 @@ try:
 
             st.markdown("---")
             sel_b = st.selectbox("ДЕТАЛІЗАЦІЯ:", unit_names)
-            u_res = [r for r in all_results if r["B"] == sel_b]
+            u_res = [r for r in filtered_results if r["B"] == sel_b]
             u_table = []
             for t in sorted(list(set([r["T"] for r in u_res]))):
                 u_table.append({"Тип цілі": t, "Всього (шт)": int(sum(r["QT"] for r in u_res if r["T"] == t)), "Верифіковано (шт)": int(sum(r["QV"] for r in u_res if r["T"] == t)), "Бали": int(sum(r["PU"] + r["PM"] for r in u_res if r["T"] == t))})
@@ -205,50 +206,49 @@ try:
         if m_list:
             opts = sorted(list(set([x["Month"] for x in m_list if x["Month"] != ""])), reverse=True)
             sel_m = st.selectbox("ПЕРІОД:", opts)
-            m_d = [x for x in m_list if x["Month"] == sel_m]
-            labs = [f"{d}.{str(m_d[0]['D'].month).zfill(2)}" for d in range(1, pd.Period(f"{m_d[0]['D'].year}-{m_d[0]['D'].month}").days_in_month + 1)]
+            m_data = [x for x in m_list if x["Month"] == sel_m]
+            labs = [f"{d}.{str(m_data[0]['D'].month).zfill(2)}" for d in range(1, pd.Period(f"{m_data[0]['D'].year}-{m_data[0]['D'].month}").days_in_month + 1)]
             vv, uu = {l:0.0 for l in labs}, {l:0.0 for l in labs}
-            for r in m_d:
+            for r in m_data:
                 l = f"{r['D'].day}.{str(r['D'].month).zfill(2)}"
                 if l in vv: vv[l] += r["V"]; uu[l] += r["U"]
             st.metric("ВЕРИФІКОВАНО МІН ЗА МІСЯЦЬ:", int(sum(vv.values())))
             fm = go.Figure()
-            fm.add_trace(go.Bar(x=labs, y=[vv[l] for l in labs], name='Вериф', marker_color='#444444'))
-            fm.add_trace(go.Bar(x=labs, y=[uu[l] for l in labs], name='Не вериф', marker_color='#CC0000'))
+            fm.add_trace(go.Bar(x=labs, y=[vv[l] for l in labs], name='Верифіковано', marker_color='#444444'))
+            fm.add_trace(go.Bar(x=labs, y=[uu[l] for l in labs], name='Не верифіковано', marker_color='#CC0000'))
             fm.add_trace(go.Scatter(x=labs, y=[vv[l]+uu[l] for l in labs], mode='text', text=[str(int(vv[l])) if vv[l]>0 else "" for l in labs], textposition='top center', showlegend=False, textfont=dict(color='white')))
             fm.update_layout(barmode='stack', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white", xaxis=dict(type='category', tickangle=-45))
             st.plotly_chart(fm, use_container_width=True)
 
     elif category == "🔥 Ураження":
-        ur_opts = ["04.2026", "03.2026", "02.2026", "01.2026"]
-        sel_ur = st.selectbox("ОБЕРІТЬ ПЕРІОД:", ur_opts)
+        opts = ["04.2026", "03.2026", "02.2026", "01.2026"]
+        sel_ur = st.selectbox("ОБЕРІТЬ ПЕРІОД:", opts)
         df = conn.read(worksheet=f"Ураження {sel_ur}", ttl=300, header=None).fillna("")
-        raw_u = df.values.tolist()[1:]; u_list, last_dt, obs = [], None, {}
-        for r in raw_u:
-            if str(r[0]).strip() != "":
-                dt = pd.to_datetime(str(r[0]), dayfirst=True, errors='coerce')
+        raw_u = df.values.tolist()[1:]; clean_u, last_dt, obs = [], None, {}
+        for r_u in raw_u:
+            if str(r_u[0]).strip() != "":
+                dt = pd.to_datetime(str(r_u[0]), dayfirst=True, errors='coerce')
                 if pd.notnull(dt): last_dt = dt
-            if last_dt and str(row[1]).strip() not in ["", "-", "•", ".", "Ціль"]:
-                vp, vq = get_urazh_data(to_native(r[2]), str(r[1]), str(r[3]))
-                total_pts = to_native(r[2]) * POINTS_MAP.get(str(r[1]).strip(), 0)
-                u_list.append({"D": last_dt, "V": vp, "U": total_pts - vp})
-                n = str(r[1]).strip()
-                if n not in obs: obs[n] = [0,0,0]
-                obs[n][0] += to_native(r[2]); obs[n][1] += vq; obs[n][2] += vp
-        if u_list:
-            st.metric("ВЕРИФІКОВАНІ БАЛИ:", int(sum(x["V"] for x in u_list)))
-            labs = [f"{d}.{str(u_list[0]['D'].month).zfill(2)}" for d in range(1, pd.Period(f"{u_list[0]['D'].year}-{u_list[0]['D'].month}").days_in_month + 1)]
+            if last_dt and str(r_u[1]).strip() not in ["", "-", "•", ".", "Ціль"]:
+                vp, vq = get_urazh_data(to_native(r_u[2]), str(r_u[1]), str(r_u[3]))
+                clean_u.append({"D": last_dt, "V": vp, "U": (to_native(r_u[2])*POINTS_MAP.get(str(r_u[1]).strip(), 0))-vp, "T": str(r_u[1]).strip(), "QT": to_native(r_u[2]), "QV": vq})
+        if clean_u:
+            st.metric("ВЕРИФІКОВАНІ БАЛИ БАТАЛЬЙОНУ:", int(sum(x["V"] for x in clean_u)))
+            labs = [f"{d}.{str(clean_u[0]['D'].month).zfill(2)}" for d in range(1, pd.Period(f"{clean_u[0]['D'].year}-{clean_u[0]['D'].month}").days_in_month + 1)]
             vv, uu = {l:0.0 for l in labs}, {l:0.0 for l in labs}
-            for r in u_list:
-                l = f"{r['D'].day}.{str(r['D'].month).zfill(2)}"
-                if l in vv: vv[l] += r["V"]; uu[l] += r["U"]
-            fig_u = go.Figure()
-            fig_u.add_trace(go.Bar(x=labs, y=[vv[l] for l in labs], name='Верифіковано', marker_color='#444444'))
-            fig_u.add_trace(go.Bar(x=labs, y=[uu[l] for l in labs], name='Не верифіковано', marker_color='#CC0000'))
-            fig_u.add_trace(go.Scatter(x=labs, y=[vv[l]+uu[l] for l in labs], mode='text', text=[str(int(vv[l])) if vv[l]>0 else "" for l in labs], textposition='top center', showlegend=False, textfont=dict(color='white')))
-            fig_u.update_layout(barmode='stack', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white", xaxis=dict(type='category', tickangle=-45))
-            st.plotly_chart(fig_u, use_container_width=True)
-            st.table(pd.DataFrame([{"Ціль":k, "Всього":int(v[0]), "Верифіковано":int(v[1]), "Бали":int(v[2])} for k,v in sorted(obs.items(), key=lambda x:x[1][2], reverse=True)]))
+            for r_u in clean_u:
+                l = f"{r_u['D'].day}.{str(r_u['D'].month).zfill(2)}"
+                if l in vv: vv[l] += r_u["V"]; uu[l] += r_u["U"]
+                n = r_u["T"]
+                if n not in obs: obs[n] = [0,0,0]
+                obs[n][0]+=r_u["QT"]; obs[n][1]+=r_u["QV"]; obs[n][2]+=r_u["V"]
+            fu = go.Figure()
+            fu.add_trace(go.Bar(x=labs, y=[vv[l] for l in labs], name='Вериф', marker_color='#444444'))
+            fu.add_trace(go.Bar(x=labs, y=[uu[l] for l in labs], name='Не вериф', marker_color='#CC0000'))
+            fu.add_trace(go.Scatter(x=labs, y=[vv[l]+uu[l] for l in labs], mode='text', text=[str(int(vv[l])) if vv[l]>0 else "" for l in labs], textposition='top center', showlegend=False, textfont=dict(color='white')))
+            fu.update_layout(barmode='stack', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white", xaxis=dict(type='category', tickangle=-45))
+            st.plotly_chart(fu, use_container_width=True)
+            st.table(pd.DataFrame([{"Тип цілі":k, "Всього":int(v[0]), "Верифіковано":int(v[1]), "Бали":int(v[2])} for k,v in sorted(obs.items(), key=lambda x:x[1][2], reverse=True)]))
 
 except Exception as e:
     st.error(f"СИСТЕМНА ПОМИЛКА: {e}")
