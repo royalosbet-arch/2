@@ -57,7 +57,7 @@ def get_mine_data(qty, status):
     return 0.0, qty
 
 # =================================================================
-# 3. ЕКРАН ВХОДУ ТА ДИЗАЙН
+# 3. ЕКРАН ВХОДУ ТА ДИЗАЙН (ЗОЛОТИЙ СТАНДАРТ)
 # =================================================================
 if "password_correct" not in st.session_state:
     logo = get_base64("logo.png")
@@ -74,7 +74,7 @@ if "password_correct" not in st.session_state:
                 <p style='color:white; font-size: 13px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; margin-top: 15px;'>СИТУАЦІЙНИЙ ЦЕНТР БАТАЛЬЙОНУ</p>
             </div>
         """, unsafe_allow_html=True)
-        pwd = st.text_input("КОД ДОСТУПУ:", type="password")
+        pwd = st.text_input("ВВЕДІТЬ КОД ДОСТУПУ:", type="password")
         if st.button("УВІЙТИ В СИСТЕМУ") and pwd == USER_PASSWORD:
             st.session_state["password_correct"] = True
             st.rerun()
@@ -86,9 +86,11 @@ st.markdown(f"""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
     .stApp {{ {bg_style} background-size: cover; background-position: center; background-attachment: fixed; font-family: "Inter", sans-serif; }}
-    [data-testid="stTable"], .stDataFrame {{ background-color: transparent !important; }}
+    /* ЗОЛОТИЙ СТАНДАРТ ПРОЗОРОСТІ ТАБЛИЦЬ */
+    [data-testid="stTable"], .stDataFrame, [data-testid="stDataFrame"] {{ background-color: transparent !important; }}
     table {{ background-color: rgba(255,255,255,0.05) !important; color: white !important; border-radius: 10px; width: 100%; }}
-    thead tr th {{ background-color: rgba(0,0,0,0.6) !important; color: #ffd700 !important; font-weight: 800 !important; }}
+    thead tr th {{ background-color: rgba(0,0,0,0.6) !important; color: #ffd700 !important; font-weight: 800 !important; border-bottom: 1px solid rgba(255,215,0,0.2) !important; }}
+    tbody tr td {{ background-color: transparent !important; color: white !important; border-bottom: 1px solid rgba(255,255,255,0.05) !important; }}
     [data-testid="stSidebar"] {{ background-color: rgba(14, 17, 23, 0.95); }}
     [data-testid="stMetricValue"] {{ color: #ffd700 !important; font-size: 34px !important; font-weight: 800 !important; }}
     </style>
@@ -114,6 +116,7 @@ try:
         for b_name in unit_names:
             try:
                 if b_name == "1аемб":
+                    # Ураження 1аемб (основне джерело)
                     df_u = conn.read(worksheet="Ураження 04.2026", ttl=300, header=None).fillna("")
                     u_data = df_u.values.tolist()
                     l_dt = None
@@ -124,7 +127,7 @@ try:
                         if l_dt and str(r[1]).strip() not in ["", "-", "•", ".", "Ціль"]:
                             vp, vq = get_urazh_data(to_native(r[2]), str(r[1]), str(r[3]))
                             all_results.append({"D": l_dt, "B": b_name, "T": str(r[1]), "PU": vp, "PM": 0.0, "QT": to_native(r[2]), "QV": vq})
-                    
+                    # Мінування 1аемб
                     df_m = conn.read(worksheet="Мінування", ttl=300, header=None).fillna("")
                     m_data = df_m.values.tolist()
                     for r in m_data[1:]:
@@ -134,6 +137,7 @@ try:
                             if vq_m > 0:
                                 all_results.append({"D": dt_m, "B": b_name, "T": "Мінування", "PU": 0.0, "PM": vq_m, "QT": vq_m, "QV": vq_m})
                 else:
+                    # Дані для 2-4 аемб та ЗРДН (персональні листи)
                     df_unit = conn.read(worksheet=b_name, ttl=300, header=None).fillna("")
                     u_rows = df_unit.values.tolist()
                     l_dt = None
@@ -146,10 +150,8 @@ try:
                         if target not in ["", "-", "•", ".", "Ціль"]:
                             vp, vq = get_urazh_data(to_native(r[2]), target, str(r[3]))
                             all_results.append({"D": l_dt, "B": b_name, "T": target, "PU": vp, "PM": 0.0, "QT": to_native(r[2]), "QV": vq})
-                        # ТЕПЕР ЗРДН ТЕЖ МАЄ 5-ТУ КОЛОНКУ (Індекс 4)
                         if len(r) > 4:
-                            # Для інших підрозділів у бригадному рахуємо арифметично
-                            v_mine, _ = get_mine_data(to_native(r[4]), "Верифіковано") 
+                            v_mine, _ = get_mine_data(to_native(r[4]), "Верифіковано")
                             if v_mine > 0:
                                 all_results.append({"D": l_dt, "B": b_name, "T": "Мінування", "PU": 0.0, "PM": v_mine, "QT": v_mine, "QV": v_mine})
             except: continue
@@ -225,9 +227,9 @@ try:
                 if pd.notnull(dt): last_dt = dt
             if last_dt and str(r_u[1]).strip() not in ["", "-", "•", ".", "Ціль"]:
                 vp, vq = get_urazh_data(to_native(r_u[2]), str(r_u[1]), str(r_u[3]))
-                clean_u.append({"D": last_dt, "V": vp, "U": (to_native(r_u[2])*POINTS_MAP.get(str(r_u[1]).strip(), 0))-vp, "T": str(r_u[1]).strip(), "QT": to_native(r_u[2]), "QV": vq})
+                clean_u.append({"D": last_dt, "V": vp, "U": (to_native(r_u[2])*POINTS_MAP.get(str(r_u[1]).strip(), 0))-vp, "T": str(r_u[1]), "QT": to_native(r_u[2]), "QV": vq})
         if clean_u:
-            st.metric("ВЕРИФІКОВАНІ БАЛИ БАТАЛЬЙОНУ:", int(sum(x["V"] for x in clean_u)))
+            st.metric("ВЕРИФІКОВАНІ БАЛИ БАТАЛЬЙОНУ:", int(sum(r["V"] for r in clean_u)))
             labs = [f"{d}.{str(clean_u[0]['D'].month).zfill(2)}" for d in range(1, pd.Period(f"{clean_u[0]['D'].year}-{clean_u[0]['D'].month}").days_in_month + 1)]
             vv, uu = {l:0.0 for l in labs}, {l:0.0 for l in labs}
             for r_u in clean_u:
