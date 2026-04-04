@@ -40,15 +40,19 @@ def to_native(val):
     except: return 0.0
 
 def calculate_verif_data(qty, target, status):
+    """НОВА ЛОГІКА: Тільки статус 'Верифіковано' дає результат."""
     t_clean = str(target).strip()
     unit_p = POINTS_MAP.get(t_clean, 0)
     st_clean = str(status).lower().strip()
-    if "не верифіковано" in st_clean:
-        match = re.search(r'(\d+)', st_clean)
-        unv_q = float(match.group(1)) if match else qty
-        v_q = max(0.0, qty - unv_q)
-    else: v_q = qty
-    return v_q * unit_p, v_q
+    
+    # Сувора перевірка: має бути "верифіковано", але НЕ "не верифіковано" і НЕ "на верифікації"
+    if "верифіковано" in st_clean and "не " not in st_clean and "на " not in st_clean:
+        v_q = qty
+        v_p = qty * unit_p
+    else:
+        v_q = 0.0
+        v_p = 0.0
+    return v_p, v_q
 
 # =================================================================
 # 3. ЕКРАН ВХОДУ ТА ДИЗАЙН
@@ -61,7 +65,7 @@ if "password_correct" not in st.session_state:
         st.write("<br><br>", unsafe_allow_html=True)
         if logo: st.markdown(f"<div style='text-align:center;'><img src='data:image/png;base64,{logo}' style='max-width:210px; border-radius:15px;'></div>", unsafe_allow_html=True)
         st.markdown("""
-            <div style='background:rgba(255,255,255,0.04); padding: 35px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.15); text-align: center; font-family: "Inter", sans-serif;'>
+            <div style='background:rgba(255,255,255,0.04); padding: 35px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.15); text-align: center; font-family: sans-serif;'>
                 <h2 style='color:white; margin:0; font-size: 34px;'>1 аемб</h2>
                 <p style='color:#ffd700; font-size: 16px; font-weight: 600; margin-bottom: 20px;'>77 ОАЕМБр • ДШВ ЗСУ 🇺🇦</p>
                 <hr style='border:0; border-top: 1px solid rgba(255,255,255,0.1);'>
@@ -79,8 +83,7 @@ bg = get_base64("background.jpg")
 bg_style = f'background-image: url("data:image/png;base64,{bg}");' if bg else 'background-color: #0E1117;'
 st.markdown(f"""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
-    .stApp {{ {bg_style} background-size: cover; background-position: center; background-attachment: fixed; font-family: "Inter", sans-serif; }}
+    .stApp {{ {bg_style} background-size: cover; background-position: center; background-attachment: fixed; font-family: sans-serif; }}
     [data-testid="stTable"], .stDataFrame {{ background-color: transparent !important; }}
     table {{ background-color: rgba(255,255,255,0.05) !important; color: white !important; border-radius: 10px; width: 100%; }}
     thead tr th {{ background-color: rgba(0,0,0,0.5) !important; color: #ffd700 !important; font-weight: 800 !important; }}
@@ -109,7 +112,7 @@ try:
         units_cfg = {
             "1аемб": [0,1,2,3,4], "2аемб": [5,6,7,8,9],
             "3аемб": [10,11,12,13,14], "4аемб": [15,16,17,18,19],
-            "ЗРДН": [20,21,22,23] # 4 колонки
+            "ЗРДН": [20,21,22,23] 
         }
         
         results = []
@@ -129,6 +132,7 @@ try:
                     results.append({"D": last_dt, "B": b_name, "T": target, "PU": vp, "PM": 0.0, "QT": to_native(row[cols[2]]), "QV": vq})
                 
                 if len(cols) == 5:
+                    # Для мінування в бригадному звіті вважаємо верифікованим те, що внесено в колонку 5
                     m_qty = to_native(row[cols[4]])
                     if m_qty > 0:
                         results.append({"D": last_dt, "B": b_name, "T": "Мінування", "PU": 0.0, "PM": m_qty, "QT": m_qty, "QV": m_qty})
@@ -136,7 +140,7 @@ try:
         if results:
             all_dates = sorted(list(set([r["D"] for r in results])))
             x_labs = [d.strftime('%d.%m') for d in all_dates]
-            st.metric("СУМАРНИЙ РЕЗУЛЬТАТ БРИГАДИ (БАЛИ + МІНИ):", int(sum(r["PU"] + r["PM"] for r in results)))
+            st.metric("СУМАРНИЙ РЕЗУЛЬТАТ БРИГАДИ (ВЕРИФІКОВАНО):", int(sum(r["PU"] + r["PM"] for r in results)))
 
             t1, t2 = st.tabs(["📈 Накопичувальний прогрес", "📊 Статистика за день"])
             
@@ -156,10 +160,8 @@ try:
                     
                     if (sum(yu) + sum(ym)) > 0:
                         lbls = [f"<b>{int(u+m)}</b><br>{b}" if (u+m) > 0 else "" for u, m in zip(yu, ym)]
-                        # Ураження
-                        fig.add_trace(go.Bar(x=x_labs, y=yu, name=f"{b} Ураж.", marker_color=CLRS[b], offsetgroup=b, showlegend=False))
-                        # Мінування (шапка)
-                        fig.add_trace(go.Bar(x=x_labs, y=ym, name=f"{b} Мін.", marker_color=MINE_CLR, offsetgroup=b, base=yu, showlegend=False, text=lbls, textposition='outside', cliponaxis=False, textfont=dict(color='white')))
+                        fig.add_trace(go.Bar(x=x_labs, y=yu, name=f"{b} Верифіковано", marker_color=CLRS[b], offsetgroup=b, showlegend=False))
+                        fig.add_trace(go.Bar(x=x_labs, y=ym, name=f"{b} Мінування", marker_color=MINE_CLR, offsetgroup=b, base=yu, showlegend=False, text=lbls, textposition='outside', cliponaxis=False, textfont=dict(color='white')))
                 
                 fig.update_layout(barmode='group', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white", height=550, xaxis=dict(type='category'), margin=dict(t=80))
                 return fig
@@ -168,7 +170,7 @@ try:
             with t2: st.plotly_chart(draw_sandwich("day"), use_container_width=True)
 
             st.markdown("---")
-            sel_b = st.selectbox("ДЕТАЛІЗАЦІЯ ПО ПІДРОЗДІЛУ:", list(units_cfg.keys()))
+            sel_b = st.selectbox("ДЕТАЛІЗАЦІЯ ПІДРОЗДІЛУ:", list(units_cfg.keys()))
             u_res = [r for r in results if r["B"] == sel_b]
             u_table = []
             for t in sorted(list(set([r["T"] for r in u_res]))):
@@ -189,12 +191,16 @@ try:
             dt = pd.to_datetime(str(r[0]), dayfirst=True, errors='coerce')
             if pd.notnull(dt):
                 q = to_native(r[2])
-                st_cl = str(r[3]).lower()
-                vq = q - (float(re.search(r'(\d+)', st_cl).group(1)) if "не верифіковано" in st_cl and re.search(r'(\d+)', st_cl) else (q if "не верифіковано" in st_cl else 0))
-                m_list.append({"D": dt, "Month": MONTHS_UKR.get(dt.month) + " " + str(dt.year), "V": vq, "U": q - vq})
+                # Використовуємо ту саму логіку: слово "верифіковано"
+                st_cl = str(r[3]).lower().strip()
+                if "верифіковано" in st_cl and "не " not in st_cl and "на " not in st_cl:
+                    vq, uq = q, 0.0
+                else:
+                    vq, uq = 0.0, q
+                m_list.append({"D": dt, "Month": MONTHS_UKR.get(dt.month, "") + " " + str(dt.year), "V": vq, "U": uq})
         
         if m_list:
-            opts = sorted(list(set([x["Month"] for x in m_list])), reverse=True)
+            opts = sorted(list(set([x["Month"] for x in m_list if x["Month"] != ""])), reverse=True)
             sel_m = st.selectbox("ОБЕРІТЬ ПЕРІОД:", opts)
             m_data = [x for x in m_list if x["Month"] == sel_m]
             st.metric("ВЕРИФІКОВАНО МІН ЗА МІСЯЦЬ:", int(sum(x["V"] for x in m_data)))
@@ -226,7 +232,8 @@ try:
                 if pd.notnull(dt): last_dt = dt
             if last_dt and str(r[1]).strip() != "":
                 vp, vq = calculate_verif_data(to_native(r[2]), r[1], r[3])
-                u_list.append({"D": last_dt, "V": vp, "U": (to_native(r[2])*POINTS_MAP.get(str(r[1]).strip(),0))-vp})
+                total_pts = to_native(r[2]) * POINTS_MAP.get(str(r[1]).strip(), 0)
+                u_list.append({"D": last_dt, "V": vp, "U": total_pts - vp})
                 n = str(r[1]).strip()
                 if n not in obj_stats: obj_stats[n] = [0,0,0]
                 obj_stats[n][0] += to_native(r[2]); obj_stats[n][1] += vq; obj_stats[n][2] += vp
