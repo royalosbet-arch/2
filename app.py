@@ -38,7 +38,6 @@ def to_native(val):
     except: return 0.0
 
 def get_urazh_data(qty, target, status):
-    """Binary логіка: Тільки статус 'Верифіковано'"""
     t_clean = str(target).strip()
     unit_p = POINTS_MAP.get(t_clean, 0)
     st_clean = str(status).lower().strip()
@@ -47,7 +46,6 @@ def get_urazh_data(qty, target, status):
     return 0.0, 0.0
 
 def get_mine_data(qty, status):
-    """Арифметична логіка: віднімання не верифікованих"""
     st_cl = str(status).lower().strip()
     if "не верифіковано" in st_cl:
         match = re.search(r'(\d+)', st_cl)
@@ -114,8 +112,7 @@ try:
         for b_name in unit_names:
             try:
                 if b_name == "1аемб":
-                    # --- ЛОГІКА ДЛЯ 1 АЕМБ: БЕРЕМО З ОСНОВНИХ ЛИСТІВ ---
-                    # 1. Ураження
+                    # Ураження для 1аемб
                     df_u = conn.read(worksheet="Ураження 04.2026", ttl=300, header=None).fillna("")
                     u_data = df_u.values.tolist()
                     last_dt = None
@@ -125,9 +122,9 @@ try:
                             if pd.notnull(dt): last_dt = dt
                         if last_dt and str(row[1]).strip() not in ["", "-", "•", ".", "Ціль"]:
                             vp, vq = get_urazh_data(to_native(row[2]), str(row[1]), str(row[3]))
-                            all_results.append({"D": last_dt, "B": b_name, "T": str(row[1]), "PU": vp, "PM": 0.0, "QT": to_native(row[2]), "QV": vq})
-                    
-                    # 2. Мінування
+                            if vp >= 0 or vq >= 0:
+                                all_results.append({"D": last_dt, "B": b_name, "T": str(row[1]), "PU": vp, "PM": 0.0, "QT": to_native(row[2]), "QV": vq})
+                    # Мінування для 1аемб
                     df_m = conn.read(worksheet="Мінування", ttl=300, header=None).fillna("")
                     m_data = df_m.values.tolist()
                     for row in m_data[1:]:
@@ -138,7 +135,7 @@ try:
                                 all_results.append({"D": dt_m, "B": b_name, "T": "Мінування", "PU": 0.0, "PM": vq_m, "QT": vq_m, "QV": vq_m})
                 
                 else:
-                    # --- ЛОГІКА ДЛЯ ІНШИХ: БЕРЕМО З ПЕРСОНАЛЬНИХ ЛИСТІВ ---
+                    # Дані для 2-4 аемб та ЗРДН з їхніх листі
                     df_unit = conn.read(worksheet=b_name, ttl=300, header=None).fillna("")
                     u_rows = df_unit.values.tolist()
                     last_dt = None
@@ -154,7 +151,7 @@ try:
                             all_results.append({"D": last_dt, "B": b_name, "T": target, "PU": vp, "PM": 0.0, "QT": to_native(row[2]), "QV": vq})
                         
                         if b_name != "ЗРДН" and len(row) > 4:
-                            m_v, _ = get_mine_data(to_native(row[4]), "Верифіковано") # Передбачаємо вериф
+                            m_v, _ = get_mine_data(to_native(row[4]), "Верифіковано")
                             if m_v > 0:
                                 all_results.append({"D": last_dt, "B": b_name, "T": "Мінування", "PU": 0.0, "PM": m_v, "QT": m_v, "QV": m_v})
             except: continue
@@ -179,6 +176,7 @@ try:
                             yu.append(acc_u); ym.append(acc_m)
                         else:
                             yu.append(du); ym.append(dm)
+                    
                     if (sum(yu) + sum(ym)) > 0:
                         lbls = [f"<b>{int(u+m)}</b><br>{b}" if (u+m) > 0 else "" for u, m in zip(yu, ym)]
                         fig.add_trace(go.Bar(x=x_labs, y=yu, marker_color=CLRS[b], offsetgroup=b, showlegend=False))
@@ -197,7 +195,6 @@ try:
             st.table(pd.DataFrame(u_table).sort_values(by="Бали", ascending=False))
 
     elif category == "🧨 Мінування":
-        # Логіка мінування залишається незмінною з app.txt
         df = conn.read(worksheet="Мінування", ttl=300, header=None).fillna("")
         raw_m = df.values.tolist()[1:]; m_list = []
         for r in raw_m:
@@ -207,33 +204,32 @@ try:
                 m_list.append({"D": dt, "Month": MONTHS_UKR.get(dt.month, "") + " " + str(dt.year), "V": vq, "U": uq})
         if m_list:
             opts = sorted(list(set([x["Month"] for x in m_list if x["Month"] != ""])), reverse=True)
-            sel_m = st.selectbox("ОБЕРІТЬ ПЕРІОД:", opts)
-            m_data = [x for x in m_list if x["Month"] == sel_m]
-            labs = [f"{d}.{str(m_data[0]['D'].month).zfill(2)}" for d in range(1, pd.Period(f"{m_data[0]['D'].year}-{m_data[0]['D'].month}").days_in_month + 1)]
+            sel_m = st.selectbox("ПЕРІОД:", opts)
+            m_d = [x for x in m_list if x["Month"] == sel_m]
+            labs = [f"{d}.{str(m_d[0]['D'].month).zfill(2)}" for d in range(1, pd.Period(f"{m_d[0]['D'].year}-{m_d[0]['D'].month}").days_in_month + 1)]
             vv, uu = {l:0.0 for l in labs}, {l:0.0 for l in labs}
-            for r in m_data:
+            for r in m_d:
                 l = f"{r['D'].day}.{str(r['D'].month).zfill(2)}"
                 if l in vv: vv[l] += r["V"]; uu[l] += r["U"]
             st.metric("ВЕРИФІКОВАНО МІН ЗА МІСЯЦЬ:", int(sum(vv.values())))
-            fig_m = go.Figure()
-            fig_m.add_trace(go.Bar(x=labs, y=[vv[l] for l in labs], name='Верифіковано', marker_color='#444444'))
-            fig_m.add_trace(go.Bar(x=labs, y=[uu[l] for l in labs], name='Не верифіковано', marker_color='#CC0000'))
-            fig_m.add_trace(go.Scatter(x=labs, y=[vv[l]+uu[l] for l in labs], mode='text', text=[str(int(vv[l])) if vv[l]>0 else "" for l in labs], textposition='top center', showlegend=False, textfont=dict(color='white')))
-            fig_m.update_layout(barmode='stack', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white", xaxis=dict(type='category', tickangle=-45))
-            st.plotly_chart(fig_m, use_container_width=True)
+            fm = go.Figure()
+            fm.add_trace(go.Bar(x=labs, y=[vv[l] for l in labs], name='Вериф', marker_color='#444444'))
+            fm.add_trace(go.Bar(x=labs, y=[uu[l] for l in labs], name='Не вериф', marker_color='#CC0000'))
+            fm.add_trace(go.Scatter(x=labs, y=[vv[l]+uu[l] for l in labs], mode='text', text=[str(int(vv[l])) if vv[l]>0 else "" for l in labs], textposition='top center', showlegend=False, textfont=dict(color='white')))
+            fm.update_layout(barmode='stack', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white", xaxis=dict(type='category', tickangle=-45))
+            st.plotly_chart(fm, use_container_width=True)
 
     elif category == "🔥 Ураження":
-        # Логіка уражень залишається незмінною з app.txt
         ur_opts = ["04.2026", "03.2026", "02.2026", "01.2026"]
-        sel_ur = st.selectbox("ПЕРІОД:", ur_opts)
+        sel_ur = st.selectbox("ОБЕРІТЬ ПЕРІОД:", ur_opts)
         df = conn.read(worksheet=f"Ураження {sel_ur}", ttl=300, header=None).fillna("")
         raw_u = df.values.tolist()[1:]; u_list, last_dt, obs = [], None, {}
         for r in raw_u:
             if str(r[0]).strip() != "":
                 dt = pd.to_datetime(str(r[0]), dayfirst=True, errors='coerce')
                 if pd.notnull(dt): last_dt = dt
-            if last_dt and str(r[1]).strip() not in ["", "-", "•", ".", "Ціль"]:
-                vp, vq = get_urazh_data(to_native(r[2]), r[1], r[3])
+            if last_dt and str(row[1]).strip() not in ["", "-", "•", ".", "Ціль"]:
+                vp, vq = get_urazh_data(to_native(r[2]), str(r[1]), str(r[3]))
                 total_pts = to_native(r[2]) * POINTS_MAP.get(str(r[1]).strip(), 0)
                 u_list.append({"D": last_dt, "V": vp, "U": total_pts - vp})
                 n = str(r[1]).strip()
@@ -252,7 +248,7 @@ try:
             fig_u.add_trace(go.Scatter(x=labs, y=[vv[l]+uu[l] for l in labs], mode='text', text=[str(int(vv[l])) if vv[l]>0 else "" for l in labs], textposition='top center', showlegend=False, textfont=dict(color='white')))
             fig_u.update_layout(barmode='stack', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white", xaxis=dict(type='category', tickangle=-45))
             st.plotly_chart(fig_u, use_container_width=True)
-            st.table(pd.DataFrame([{"Тип цілі":k, "Всього":int(v[0]), "Верифіковано":int(v[1]), "Бали":int(v[2])} for k,v in sorted(obs.items(), key=lambda x:x[1][2], reverse=True)]))
+            st.table(pd.DataFrame([{"Ціль":k, "Всього":int(v[0]), "Верифіковано":int(v[1]), "Бали":int(v[2])} for k,v in sorted(obs.items(), key=lambda x:x[1][2], reverse=True)]))
 
 except Exception as e:
-    st.error(f"ПОМИЛКА: {e}")
+    st.error(f"СИСТЕМНА ПОМИЛКА: {e}")
