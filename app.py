@@ -74,7 +74,7 @@ if "password_correct" not in st.session_state:
                 <p style='color:white; font-size: 13px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; margin-top: 15px;'>СИТУАЦІЙНИЙ ЦЕНТР БАТАЛЬЙОНУ</p>
             </div>
         """, unsafe_allow_html=True)
-        pwd = st.text_input("ВВЕДІТЬ КОД ДОСТУПУ:", type="password")
+        pwd = st.text_input("КОД ДОСТУПУ:", type="password")
         if st.button("УВІЙТИ В СИСТЕМУ") and pwd == USER_PASSWORD:
             st.session_state["password_correct"] = True
             st.rerun()
@@ -86,7 +86,6 @@ st.markdown(f"""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
     .stApp {{ {bg_style} background-size: cover; background-position: center; background-attachment: fixed; font-family: "Inter", sans-serif; }}
-    /* ЗОЛОТИЙ СТАНДАРТ ПРОЗОРОСТІ ТАБЛИЦЬ */
     [data-testid="stTable"], .stDataFrame, [data-testid="stDataFrame"] {{ background-color: transparent !important; }}
     table {{ background-color: rgba(255,255,255,0.05) !important; color: white !important; border-radius: 10px; width: 100%; }}
     thead tr th {{ background-color: rgba(0,0,0,0.6) !important; color: #ffd700 !important; font-weight: 800 !important; border-bottom: 1px solid rgba(255,215,0,0.2) !important; }}
@@ -116,28 +115,26 @@ try:
         for b_name in unit_names:
             try:
                 if b_name == "1аемб":
-                    # Ураження 1аемб (основне джерело)
                     df_u = conn.read(worksheet="Ураження 04.2026", ttl=300, header=None).fillna("")
-                    u_data = df_u.values.tolist()
+                    u_rows = df_u.values.tolist()
                     l_dt = None
-                    for r in u_data[1:]:
+                    for r in u_rows[1:]:
                         if str(r[0]).strip() != "":
                             dt = pd.to_datetime(str(r[0]), dayfirst=True, errors='coerce')
                             if pd.notnull(dt): l_dt = dt
                         if l_dt and str(r[1]).strip() not in ["", "-", "•", ".", "Ціль"]:
                             vp, vq = get_urazh_data(to_native(r[2]), str(r[1]), str(r[3]))
                             all_results.append({"D": l_dt, "B": b_name, "T": str(r[1]), "PU": vp, "PM": 0.0, "QT": to_native(r[2]), "QV": vq})
-                    # Мінування 1аемб
+                    
                     df_m = conn.read(worksheet="Мінування", ttl=300, header=None).fillna("")
-                    m_data = df_m.values.tolist()
-                    for r in m_data[1:]:
+                    m_rows = df_m.values.tolist()
+                    for r in m_rows[1:]:
                         dt_m = pd.to_datetime(str(r[0]), dayfirst=True, errors='coerce')
                         if pd.notnull(dt_m):
                             vq_m, _ = get_mine_data(to_native(r[2]), str(r[3]))
                             if vq_m > 0:
                                 all_results.append({"D": dt_m, "B": b_name, "T": "Мінування", "PU": 0.0, "PM": vq_m, "QT": vq_m, "QV": vq_m})
                 else:
-                    # Дані для 2-4 аемб та ЗРДН (персональні листи)
                     df_unit = conn.read(worksheet=b_name, ttl=300, header=None).fillna("")
                     u_rows = df_unit.values.tolist()
                     l_dt = None
@@ -168,13 +165,13 @@ try:
                 fig = go.Figure()
                 for b in unit_names:
                     yu, ym = [], []
-                    acc_u, acc_m = 0.0, 0.0
+                    au, am = 0.0, 0.0
                     for d in all_dates:
                         du = sum(r["PU"] for r in filtered if r["D"] == d and r["B"] == b)
                         dm = sum(r["PM"] for r in filtered if r["D"] == d and r["B"] == b)
                         if mode == "cum":
-                            acc_u += du; acc_m += dm
-                            yu.append(acc_u); ym.append(acc_m)
+                            au += du; am += dm
+                            yu.append(au); ym.append(am)
                         else:
                             yu.append(du); ym.append(dm)
                     if (sum(yu) + sum(ym)) > 0:
@@ -212,9 +209,11 @@ try:
                 if l in vv: vv[l] += r["V"]; uu[l] += r["U"]
             st.metric("ВЕРИФІКОВАНО МІН:", int(sum(vv.values())))
             fm = go.Figure()
-            fm.add_trace(go.Bar(x=labs, y=[vv[l] for l in labs], name='Вериф', marker_color='#444444'))
-            fm.add_trace(go.Bar(x=labs, y=[uu[l] for l in labs], name='Не вериф', marker_color='#CC0000'))
-            fm.update_layout(barmode='stack', paper_bgcolor='rgba(0,0,0,0)', font_color="white", xaxis=dict(type='category'))
+            fm.add_trace(go.Bar(x=labs, y=[vv[l] for l in labs], name='Верифіковано', marker_color='#444444'))
+            fm.add_trace(go.Bar(x=labs, y=[uu[l] for l in labs], name='Не верифіковано', marker_color='#CC0000'))
+            fm.add_trace(go.Scatter(x=labs, y=[vv[l]+uu[l] for l in labs], mode='text', text=[str(int(vv[l])) if vv[l]>0 else "" for l in labs], textposition='top center', showlegend=False, textfont=dict(color='white')))
+            # ЗОЛОТИЙ СТАНДАРТ ПРОЗОРОСТІ
+            fm.update_layout(barmode='stack', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white", xaxis=dict(type='category', tickangle=-45))
             st.plotly_chart(fm, use_container_width=True)
 
     elif category == "🔥 Ураження":
@@ -229,7 +228,7 @@ try:
                 vp, vq = get_urazh_data(to_native(r_u[2]), str(r_u[1]), str(r_u[3]))
                 clean_u.append({"D": last_dt, "V": vp, "U": (to_native(r_u[2])*POINTS_MAP.get(str(r_u[1]).strip(), 0))-vp, "T": str(r_u[1]), "QT": to_native(r_u[2]), "QV": vq})
         if clean_u:
-            st.metric("ВЕРИФІКОВАНІ БАЛИ БАТАЛЬЙОНУ:", int(sum(r["V"] for r in clean_u)))
+            st.metric("ВЕРИФІКОВАНІ БАЛИ БАТАЛЬЙОНУ:", int(sum(r_u["V"] for r_u in clean_u)))
             labs = [f"{d}.{str(clean_u[0]['D'].month).zfill(2)}" for d in range(1, pd.Period(f"{clean_u[0]['D'].year}-{clean_u[0]['D'].month}").days_in_month + 1)]
             vv, uu = {l:0.0 for l in labs}, {l:0.0 for l in labs}
             for r_u in clean_u:
@@ -239,9 +238,11 @@ try:
                 if n not in obs: obs[n] = [0,0,0]
                 obs[n][0]+=r_u["QT"]; obs[n][1]+=r_u["QV"]; obs[n][2]+=r_u["V"]
             fu = go.Figure()
-            fu.add_trace(go.Bar(x=labs, y=[vv[l] for l in labs], marker_color='#444444'))
-            fu.add_trace(go.Bar(x=labs, y=[uu[l] for l in labs], marker_color='#CC0000'))
-            fu.update_layout(barmode='stack', paper_bgcolor='rgba(0,0,0,0)', font_color="white", xaxis=dict(type='category'))
+            fu.add_trace(go.Bar(x=labs, y=[vv[l] for l in labs], name='Верифіковано', marker_color='#444444'))
+            fu.add_trace(go.Bar(x=labs, y=[uu[l] for l in labs], name='Не верифіковано', marker_color='#CC0000'))
+            fu.add_trace(go.Scatter(x=labs, y=[vv[l]+uu[l] for l in labs], mode='text', text=[str(int(vv[l])) if vv[l]>0 else "" for l in labs], textposition='top center', showlegend=False, textfont=dict(color='white')))
+            # ЗОЛОТИЙ СТАНДАРТ ПРОЗОРОСТІ
+            fu.update_layout(barmode='stack', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white", xaxis=dict(type='category', tickangle=-45))
             st.plotly_chart(fu, use_container_width=True)
             st.table(pd.DataFrame([{"Тип цілі":k, "Всього":int(v[0]), "Верифіковано":int(v[1]), "Бали":int(v[2])} for k,v in sorted(obs.items(), key=lambda x:x[1][2], reverse=True)]))
 
