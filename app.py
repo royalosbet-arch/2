@@ -108,7 +108,7 @@ if st.sidebar.button('🔄 ОНОВИТИ ДАНІ'):
 
 try:
     if category == "⚔️ Бригадні звіти":
-        st.markdown("<h3 style='text-align:center; color:white;'>⚔️ ЗАГАЛЬНОБРИГАДНИЙ МОНІТОРИНГ</h3>", unsafe_allow_html=True)
+        st.markdown("<h3 style='text-align:center; color:white;'>⚔️ ЗАГАЛЬНОБРИГАДНИЙ МОНІТОРИНГ 05.2026 </h3>", unsafe_allow_html=True)
         unit_names = ["1аемб", "2аемб", "3аемб", "4аемб", "ЗРДН"]
         all_results = []
         cur_m, cur_y = 5, 2026
