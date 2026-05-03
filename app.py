@@ -111,12 +111,12 @@ try:
         st.markdown("<h3 style='text-align:center; color:white;'>⚔️ ЗАГАЛЬНОБРИГАДНИЙ МОНІТОРИНГ</h3>", unsafe_allow_html=True)
         unit_names = ["1аемб", "2аемб", "3аемб", "4аемб", "ЗРДН"]
         all_results = []
-        cur_m, cur_y = 4, 2026
+        cur_m, cur_y = 5, 2026
 
         for b_name in unit_names:
             try:
                 if b_name == "1аемб":
-                    df_u = conn.read(worksheet="Ураження 04.2026", ttl=300, header=None).fillna("")
+                    df_u = conn.read(worksheet="Ураження 05.2026", ttl=300, header=None).fillna("")
                     u_rows = df_u.values.tolist()
                     l_dt = None
                     for r in u_rows[1:]:
