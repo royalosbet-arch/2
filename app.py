@@ -79,7 +79,7 @@ if "password_correct" not in st.session_state:
         st.markdown("""
             <div style='background:rgba(255,255,255,0.04); padding: 35px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.15); text-align: center; font-family: "Inter", sans-serif;'>
                 <h2 style='color:white; margin:0;'>1 аемб</h2>
-                <p style='color:#ffd700; font-size: 16px; font-weight: 600; margin-bottom: 20px;'>77 ОАЕМБр • ДШВ ЗСУ 🇺🇦</p>
+                <p style='color:#ffd700; font-size: 16px; font-weight: 600; margin-bottom: 20px;'>77 ОАЕМБр • ДШВ ЗСУ UA</p>
                 <hr style='border:0; border-top: 1px solid rgba(255,255,255,0.1);'>
                 <p style='color:white; font-size: 13px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; margin-top: 15px;'>СИТУАЦІЙНИЙ ЦЕНТР БАТАЛЬЙОНУ</p>
             </div>
@@ -117,8 +117,8 @@ if st.sidebar.button('🔄 ОНОВИТИ ДАНІ'):
 
 try:
     if category == "⚔️ Бригадні звіти":
-        st.markdown("<h3 style='text-align:center; color:white;'>⚔️ ЗАГАЛЬНОБРИГАДНИЙ МОНІТОРИНГ 05.2026 </h3>", unsafe_allow_html=True)
-        unit_names = ["1аемб", "2аемб", "3аемб", "4аемб", "ЗРДН"]
+        st.markdown("<h3 style='text-align:center; color:white;'>⚔️ ЗАГАЛЬНОБРИГАДНИЙ МОНІТОРИНГ 16.05.2026 </h3>", unsafe_allow_html=True)
+        unit_names = ["1аемб", "2аемб", "3аемб", "4аемб"]
         all_results = []
         cur_m, cur_y = 5, 2026
 
