@@ -86,7 +86,7 @@ if not st.session_state["intro_shown"]:
         }
         .radar-pulse {
             width: 150px; height: 150px; border-radius: 50%;
-            background: rgba(255, 215, 0, 0.03); border: 2px solid #ffd700;
+            background: rgba(255, 215, 0, 0.03); border: 25px solid #ffd700;
             display: flex; align-items: center; justify-content: center;
             margin-bottom: 150px; animation: pulseRadar 3s infinite ease-in-out;
         }
