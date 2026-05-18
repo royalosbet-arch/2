@@ -69,16 +69,34 @@ if not st.session_state["intro_shown"]:
     logo = get_base64("logo.png")
     st.markdown("""
         <style>
-        .stApp { background-color: #0E1117; }
-        .boot-container {
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-            height: 85vh; font-family: "Inter", sans-serif; color: #ffd700; text-align: center;
+        /* Повністю перекриваємо весь екран поверх Streamlit */
+        .boot-screen-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: #0E1117;
+            z-index: 999999;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-family: "Inter", sans-serif;
+            color: #ffd700;
+            text-align: center;
         }
         .radar-pulse {
-            width: 150px; height: 150px; border-radius: 50%;
-            background: rgba(255, 215, 0, 0.03); border: 2px solid #ffd700;
-            display: flex; align-items: center; justify-content: center;
-            margin-bottom: 30px; animation: pulseRadar 2s infinite ease-in-out;
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            background: rgba(255, 215, 0, 0.03);
+            border: 2px solid #ffd700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 30px;
+            animation: pulseRadar 2s infinite ease-in-out;
         }
         @keyframes pulseRadar {
             0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 215, 0, 0.4); opacity: 0.7; }
@@ -86,20 +104,31 @@ if not st.session_state["intro_shown"]:
             100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 215, 0, 0); opacity: 0.7; }
         }
         .boot-text {
-            font-size: 13px; font-weight: 800; letter-spacing: 4px;
-            text-transform: uppercase; animation: blinkText 1.5s infinite;
+            font-size: 13px;
+            font-weight: 800;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            animation: blinkText 1.5s infinite;
+            margin: 0;
+            padding: 0 20px;
         }
         @keyframes blinkText { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
+        
+        /* Ховаємо елементи Streamlit під час заставки, щоб вони не стрибали */
+        [data-testid="stHeader"], [data-testid="stSidebar"] { display: none !important; }
         </style>
     """, unsafe_allow_html=True)
     
-    st.markdown('<div class="boot-container">', unsafe_allow_html=True)
+    # Створюємо один суцільний контейнер, який зафіксовано по центру екрана
+    html_content = '<div class="boot-screen-overlay">'
     if logo:
-        st.markdown(f'<div class="radar-pulse"><img src="data:image/png;base64,{logo}" style="max-width:95px; border-radius:15px;"></div>', unsafe_allow_html=True)
+        html_content += f'<div class="radar-pulse"><img src="data:image/png;base64,{logo}" style="max-width:95px; border-radius:15px;"></div>'
     else:
-        st.markdown('<div class="radar-pulse" style="font-size:40px;">🛡️</div>', unsafe_allow_html=True)
-    st.markdown('<p class="boot-text">СИНХРОНІЗАЦІЯ З БАЗОЮ ДАНИХ... ЗАВАНТАЖЕННЯ СИСТЕМИ</p>', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+        html_content += '<div class="radar-pulse" style="font-size:40px;">🛡️</div>'
+    html_content += '<p class="boot-text">СИНХРОНІЗАЦІЯ З БАЗОЮ ДАНИХ... ЗАВАНТАЖЕННЯ СИСТЕМИ</p>'
+    html_content += '</div>'
+    
+    st.markdown(html_content, unsafe_allow_html=True)
     
     time.sleep(2.5)  # Час показу заставки у секундах
     st.session_state["intro_shown"] = True
