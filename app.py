@@ -299,23 +299,14 @@ try:
                     "Бали": int(sum(r["PU"] + r["PM"] for r in u_res if r["T"] == t))
                 })
 
-            # Створюємо DataFrame та сортуємо його
             df_report = pd.DataFrame(u_table).sort_values(by="Бали", ascending=False)
 
-            # Функція для стилізації клітинок
             def style_report_cells(val, column_name):
-                # Якщо значення 0 — приглушаємо його
                 if isinstance(val, (int, float)) and val == 0:
                     return 'color: #555555; font-weight: normal;'
-                
-                # Задаємо кольори для заповнених клітинок залежно від стовпчика
-                if column_name == "Верифіковано (шт)":
-                    return 'color: #2ECC71; font-weight: bold;'  # Зелений
-                elif column_name == "Не верифіковано (шт)":
-                    return 'color: #E74C3C; font-weight: bold;'  # Червоний
-                elif column_name == "На верифікації (шт)":
-                    return 'color: #95A5A6; font-weight: bold;'  # Сірий
-                
+                if column_name == "Верифіковано (шт)": return 'color: #2ECC71; font-weight: bold;'
+                elif column_name == "Не верифіковано (шт)": return 'color: #E74C3C; font-weight: bold;'
+                elif column_name == "На верифікації (шт)": return 'color: #95A5A6; font-weight: bold;'
                 return 'color: white;'
 
             # Застосовуємо стилі через Styler
