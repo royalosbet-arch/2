@@ -96,7 +96,7 @@ if not st.session_state["intro_shown"]:
             align-items: center;
             justify-content: center;
             margin-bottom: 30px;
-            animation: pulseRadar 2s infinite ease-in-out;
+            animation: pulseRadar 5s infinite ease-in-out;
         }
         @keyframes pulseRadar {
             0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 215, 0, 0.4); opacity: 0.7; }
