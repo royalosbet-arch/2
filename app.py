@@ -227,28 +227,44 @@ try:
                     target = str(r[1]).strip()
                     if target not in ["", "-", "•", ".", "Ціль"]:
                         qty = to_native(r[2])
-                        st_clean = str(r[3]).lower().strip()
+                        st_raw = str(r[3]).strip()
+                        st_clean = st_raw.lower()
                         
-                        vp, vq = get_urazh_data(qty, target, str(r[3]))
+                        vp, vq = get_urazh_data(qty, target, st_raw)
                         
                         q_ver = vq
+                        reason = ""
+                        
+                        # Надійна логіка визначення статусів та витягування причин
                         if q_ver > 0:
                             q_unver, q_pend = 0.0, 0.0
                         elif "не вериф" in st_clean:
                             q_unver, q_pend = qty, 0.0
+                            
+                            # Намагаємось дістати причину за двокрапкою або дужками
+                            if ":" in st_raw:
+                                reason = st_raw.split(":", 1)[1].strip()
+                            elif "(" in st_raw:
+                                reason = st_raw.split("(", 1)[1].replace(")", "").strip()
+                            else:
+                                # Якщо двокрапки немає, але текст довший за "не верифіковано"
+                                # Вирізаємо саме слово "не верифіковано" / "не вериф" і беремо залишок
+                                rem = re.sub(r'(не верифіковано|не верифікований|не вериф)', '', st_raw, flags=re.IGNORECASE).strip()
+                                if rem: reason = rem
                         else:
                             q_unver, q_pend = 0.0, qty
                             
                         all_results.append({
                             "D": l_dt, "B": b_name, "T": target, "PU": vp, "PM": 0.0, 
-                            "QT": qty, "QV": q_ver, "QUN": q_unver, "QPE": q_pend
+                            "QT": qty, "QV": q_ver, "QUN": q_unver, "QPE": q_pend,
+                            "Reason": reason
                         })
                     if len(r) > 4:
                         v_mine = to_native(r[4])
                         if v_mine > 0:
                             all_results.append({
                                 "D": l_dt, "B": b_name, "T": "Мінування", "PU": 0.0, "PM": v_mine, 
-                                "QT": v_mine, "QV": v_mine, "QUN": 0.0, "QPE": 0.0
+                                "QT": v_mine, "QV": v_mine, "QUN": 0.0, "QPE": 0.0, "Reason": ""
                             })
             except: continue
 
@@ -260,12 +276,23 @@ try:
                         dt_m = pd.to_datetime(str(r[0]), dayfirst=True, errors='coerce')
                         if pd.notnull(dt_m) and dt_m.month == cur_m and dt_m.year == cur_y:
                             qty_m = to_native(r[2])
-                            st_cl = str(r[3]).lower().strip()
+                            st_raw_m = str(r[3]).strip()
+                            st_cl = st_raw_m.lower()
+                            reason_m = ""
+                            
                             if "не вериф" in st_cl:
                                 match = re.search(r'(\d+)', st_cl)
                                 qun_m = float(match.group(1)) if match else qty_m
                                 qv_m = max(0.0, qty_m - qun_m)
                                 qp_m = 0.0
+                                
+                                if ":" in st_raw_m: 
+                                    reason_m = st_raw_m.split(":", 1)[1].strip()
+                                elif "(" in st_raw_m:
+                                    reason_m = st_raw_m.split("(", 1)[1].replace(")", "").strip()
+                                else:
+                                    rem_m = re.sub(r'(\d+|не верифіковано|не верифікований|не вериф)', '', st_raw_m, flags=re.IGNORECASE).strip()
+                                    if rem_m: reason_m = rem_m
                             elif st_cl == "верифіковано":
                                 qv_m, qun_m, qp_m = qty_m, 0.0, 0.0
                             else:
@@ -274,7 +301,7 @@ try:
                             if qty_m > 0:
                                 all_results.append({
                                     "D": dt_m, "B": b_name, "T": "Мінування", "PU": 0.0, "PM": qv_m, 
-                                    "QT": qty_m, "QV": qv_m, "QUN": qun_m, "QPE": qp_m
+                                    "QT": qty_m, "QV": qv_m, "QUN": qun_m, "QPE": qp_m, "Reason": reason_m
                                 })
                 except: pass
 
@@ -309,7 +336,6 @@ try:
                 elif column_name == "На верифікації (шт)": return 'color: #95A5A6; font-weight: bold;'
                 return 'color: white;'
 
-            # Застосовуємо стилі через Styler
             styled_df = df_report.style.map(
                 lambda v: style_report_cells(v, "Верифіковано (шт)"), subset=["Верифіковано (шт)"]
             ).map(
@@ -321,8 +347,30 @@ try:
                 subset=["Всього (шт)", "Бали"]
             )
 
-            # Виводимо інтерактивну таблицю замість старого st.table
             st.dataframe(styled_df, use_container_width=True, hide_index=True)
+
+            # --- ОНОВЛЕНИЙ І НАДІЙНІШИЙ БЛОК ПРИЧИН ---
+            # Витягуємо всі записи поточного підрозділу, які мають хоча б ОДНУ неверифіковану одиницю
+            unverified_records = [r for r in u_res if r["QUN"] > 0]
+            
+            st.markdown("<br>", unsafe_allow_html=True)
+            with st.expander("🔍 Переглянути деталі та причини щодо не верифікованих об'єктів"):
+                if unverified_records:
+                    has_reasons = False
+                    for item in unverified_records:
+                        date_str = item["D"].strftime("%d.%m.%Y")
+                        # Якщо причина вказана
+                        if item["Reason"]:
+                            has_reasons = True
+                            st.markdown(f"• **{date_str}** — *{item['T']}* ({int(item['QUN'])} шт) — <span style='color:#E74C3C; font-weight:600;'>Причина: {item['Reason']}</span>", unsafe_allow_html=True)
+                        else:
+                            # Якщо причину забули написати в таблиці
+                            st.markdown(f"• **{date_str}** — *{item['T']}* ({int(item['QUN'])} шт) — <span style='color:#95A5A6;'>Причину не вказано в Google Sheets</span>", unsafe_allow_html=True)
+                    
+                    if not has_reasons:
+                        st.info("ℹ️ У таблиці знайдено не верифіковані об'єкти, але жодного опису чи причини для них не додано.")
+                else:
+                    st.success("✅ У цього підрозділу за обраний період немає жодного не верифікованого об'єкта.")
 
     elif category == "🧨 Мінування":
         df = conn.read(worksheet="Мінування", ttl=300, header=None).fillna("")
