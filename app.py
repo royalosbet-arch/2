@@ -85,10 +85,10 @@ if not st.session_state["intro_shown"]:
             height: 85vh; font-family: "Inter", sans-serif; color: #ffd700; text-align: center;
         }
         .radar-pulse {
-            width: 150px; height: 150px; border-radius: 50%;
+            width: 150px; height: 150px; border-radius: 20%;
             background: rgba(255, 215, 0, 0.03); border: 25px solid #ffd700;
             display: flex; align-items: center; justify-content: center;
-            margin-bottom: 150px; animation: pulseRadar 3s infinite ease-in-out;
+            margin-bottom: 20px; animation: pulseRadar 4s infinite ease-in-out;
         }
         @keyframes pulseRadar {
             0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 215, 0, 0.4); opacity: 0.7; }
