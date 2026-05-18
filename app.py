@@ -85,7 +85,7 @@ if not st.session_state["intro_shown"]:
             height: 85vh; font-family: "Inter", sans-serif; color: #ffd700; text-align: center;
         }
         .radar-pulse {
-            width: 150px; height: 150px; border-radius: 50%;
+            width: 300px; height: 300px; border-radius: 50%;
             background: rgba(255, 215, 0, 0.03); border: 2px solid #ffd700;
             display: flex; align-items: center; justify-content: center;
             margin-bottom: 30px; animation: pulseRadar 2s infinite ease-in-out;
