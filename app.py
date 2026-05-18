@@ -290,13 +290,13 @@ try:
                 return 'color: white;'
 
             # Застосовуємо стилі через Styler
-            styled_df = df_report.style.applymap(
+            styled_df = df_report.style.map(
                 lambda v: style_report_cells(v, "Верифіковано (шт)"), subset=["Верифіковано (шт)"]
-            ).applymap(
+            ).map(
                 lambda v: style_report_cells(v, "Не верифіковано (шт)"), subset=["Не верифіковано (шт)"]
-            ).applymap(
+            ).map(
                 lambda v: style_report_cells(v, "На верифікації (шт)"), subset=["На верифікації (шт)"]
-            ).applymap(
+            ).map(
                 lambda v: 'color: #555555;' if (isinstance(v, (int, float)) and v == 0) else 'color: white;', 
                 subset=["Всього (шт)", "Бали"]
             )
