@@ -259,17 +259,51 @@ try:
             u_total_pts = int(sum(r["PU"] + r["PM"] for r in u_res))
             st.metric(f"ВСЬОГО БАЛІВ ({sel_b}):", u_total_pts)
             
-            u_table = []
-            for t in sorted(list(set([r["T"] for r in u_res]))):
-                u_table.append({
-                    "Тип цілі": t, 
-                    "Всього (шт)": int(sum(r["QT"] for r in u_res if r["T"] == t)),
-                    "Верифіковано (шт)": int(sum(r["QV"] for r in u_res if r["T"] == t)),
-                    "Не верифіковано (шт)": int(sum(r["QUN"] for r in u_res if r["T"] == t)),
-                    "На верифікації (шт)": int(sum(r["QPE"] for r in u_res if r["T"] == t)),
-                    "Бали": int(sum(r["PU"] + r["PM"] for r in u_res if r["T"] == t))
-                })
-            st.table(pd.DataFrame(u_table).sort_values(by="Бали", ascending=False))
+            # СТАЛО:
+u_table = []
+for t in sorted(list(set([r["T"] for r in u_res]))):
+    u_table.append({
+        "Тип цілі": t, 
+        "Всього (шт)": int(sum(r["QT"] for r in u_res if r["T"] == t)),
+        "Верифіковано (шт)": int(sum(r["QV"] for r in u_res if r["T"] == t)),
+        "Не верифіковано (шт)": int(sum(r["QUN"] for r in u_res if r["T"] == t)),
+        "На верифікації (шт)": int(sum(r["QPE"] for r in u_res if r["T"] == t)),
+        "Бали": int(sum(r["PU"] + r["PM"] for r in u_res if r["T"] == t))
+    })
+
+# Створюємо DataFrame та сортуємо його
+df_report = pd.DataFrame(u_table).sort_values(by="Бали", ascending=False)
+
+# Функція для стилізації клітинок
+def style_report_cells(val, column_name):
+    # Якщо значення 0 — приглушаємо його (робимо темно-сірим для обох типів тем)
+    if isinstance(val, (int, float)) and val == 0:
+        return 'color: #555555; font-weight: normal;'
+    
+    # Задаємо кольори для заповнених клітинок залежно від стовпчика
+    if column_name == "Верифіковано (шт)":
+        return 'color: #2ECC71; font-weight: bold;'  # Яскраво-зелений
+    elif column_name == "Не верифіковано (шт)":
+        return 'color: #E74C3C; font-weight: bold;'  # Яскраво-червоний
+    elif column_name == "На верифікації (шт)":
+        return 'color: #95A5A6; font-weight: bold;'  # Сірий
+    
+    return 'color: white;' # Для всіх інших колонок за замовчуванням
+
+# Застосовуємо стилі через Styler
+styled_df = df_report.style.applymap(
+    lambda v: style_report_cells(v, "Верифіковано (шт)"), subset=["Верифіковано (шт)"]
+).applymap(
+    lambda v: style_report_cells(v, "Не верифіковано (шт)"), subset=["Не верифіковано (шт)"]
+).applymap(
+    lambda v: style_report_cells(v, "На верифікації (шт)"), subset=["На верифікації (шт)"]
+).applymap(
+    lambda v: 'color: #555555;' if (isinstance(v, (int, float)) and v == 0) else 'color: white;', 
+    subset=["Всього (шт)", "Бали"]
+)
+
+# Виводимо інтерактивну таблицю на всю ширину
+st.dataframe(styled_df, use_container_width=True, hide_index=True)
 
     elif category == "🧨 Мінування":
         df = conn.read(worksheet="Мінування", ttl=300, header=None).fillna("")
