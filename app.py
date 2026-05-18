@@ -397,63 +397,132 @@ try:
             st.plotly_chart(fm, use_container_width=True)
 
     elif category == "🔥 Ураження":
-        sel_ur = st.selectbox("ОБЕРІТЬ ПЕРІОД:", ["04.2026", "03.2026", "02.2026", "01.2026"])
-        df = conn.read(worksheet=f"Ураження {sel_ur}", ttl=300, header=None).fillna("")
-        raw_u = df.values.tolist()[1:]; clean_u, last_dt, obs = [], None, {}
-        for r_u in raw_u:
-            if str(r_u[0]).strip() != "":
-                dt = pd.to_datetime(str(r_u[0]), dayfirst=True, errors='coerce')
-                if pd.notnull(dt): last_dt = dt
-            if last_dt and str(r_u[1]).strip() not in ["", "-", "•", ".", "Ціль"]:
-                target = str(r_u[1]).strip()
-                qty = to_native(r_u[2])
-                st_clean = str(r_u[3]).lower().strip()
-                
-                vp, vq = get_urazh_data(qty, target, str(r_u[3]))
-                
-                q_ver = vq
-                if q_ver > 0:
-                    q_unver, q_pend = 0.0, 0.0
-                elif "не вериф" in st_clean:
-                    q_unver, q_pend = qty, 0.0
-                else:
-                    q_unver, q_pend = 0.0, qty
-                    
-                clean_u.append({
-                    "D": last_dt, "V": vp, "U": (qty * POINTS_MAP.get(target, 0)) - vp, "T": target, 
-                    "QT": qty, "QV": q_ver, "QUN": q_unver, "QPE": q_pend
-                })
-        if clean_u:
-            st.metric("ВЕРИФІКОВАНІ БАЛИ БАТАЛЬЙОНУ:", int(sum(rx["V"] for rx in clean_u)))
-            labs = [f"{d}.{str(clean_u[0]['D'].month).zfill(2)}" for d in range(1, pd.Period(f"{clean_u[0]['D'].year}-{clean_u[0]['D'].month}").days_in_month + 1)]
-            vv, uu = {l:0.0 for l in labs}, {l:0.0 for l in labs}
-            for r_u in clean_u:
-                l = f"{r_u['D'].day}.{str(r_u['D'].month).zfill(2)}"
-                if l in vv: vv[l] += r_u["V"]; uu[l] += r_u["U"]
-                n = r_u["T"]
-                if n not in obs: 
-                    obs[n] = {"QT": 0, "QV": 0, "QUN": 0, "QPE": 0, "V": 0}
-                obs[n]["QT"] += r_u["QT"]
-                obs[n]["QV"] += r_u["QV"]
-                obs[n]["QUN"] += r_u["QUN"]
-                obs[n]["QPE"] += r_u["QPE"]
-                obs[n]["V"] += r_u["V"]
-                
-            fu = go.Figure()
-            fu.add_trace(go.Bar(x=labs, y=[vv[l] for l in labs], name='Верифіковано', marker_color='#444444'))
-            fu.add_trace(go.Bar(x=labs, y=[uu[l] for l in labs], name='Не верифіковано', marker_color='#CC0000'))
-            fu.add_trace(go.Scatter(x=labs, y=[vv[l]+uu[l] for l in labs], mode='text', text=[str(int(vv[l])) if vv[l]>0 else "" for l in labs], textposition='top center', showlegend=False, textfont=dict(color='white')))
-            fu.update_layout(barmode='stack', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white", xaxis=dict(type='category', tickangle=-45))
-            st.plotly_chart(fu, use_container_width=True)
+        # 1. Вибір періоду (місяця)
+        sel_ur = st.selectbox("ОБЕРІТЬ ПЕРІОД ДЛЯ АНАЛІТИКИ УРАЖЕНЬ:", ["05.2026", "04.2026", "03.2026", "02.2026", "01.2026"])
+        prefix = sel_ur.split(".")[0]
+        cur_m = int(prefix)
+        cur_y = int(sel_ur.split(".")[1])
+
+        st.markdown(f"<h3 style='text-align:center; color:white;'>🔥 МОНІТОРИНГ УРАЖЕНЬ ЗА {sel_ur} </h3>", unsafe_allow_html=True)
+        
+        # 2. Збір даних по всіх підрозділах (використовуємо твою надійну логіку з першого блоку)
+        unit_names = ["1аемб", "2аемб", "3аемб", "4аемб", "ЗРДН"]
+        urazh_all_units = []
+
+        for b_name in unit_names:
+            sheet_name = f"{prefix}.{b_name}"
+            try:
+                df_unit = conn.read(worksheet=sheet_name, ttl=300, header=None).fillna("")
+            except:
+                try:
+                    df_unit = conn.read(worksheet=b_name, ttl=300, header=None).fillna("")
+                except:
+                    continue
             
-            st.table(pd.DataFrame([{
-                "Тип цілі": k, 
-                "Всього (шт)": int(v["QT"]), 
-                "Верифіковано (шт)": int(v["QV"]), 
-                "Не верифіковано (шт)": int(v["QUN"]), 
-                "На верифікації (шт)": int(v["QPE"]), 
-                "Бали": int(v["V"])
-            } for k, v in sorted(obs.items(), key=lambda x: x[1]["V"], reverse=True)]))
+            try:
+                u_rows = df_unit.values.tolist()
+                l_dt = None
+                for r in u_rows[1:]:
+                    if str(r[0]).strip() != "":
+                        dt = pd.to_datetime(str(r[0]), dayfirst=True, errors='coerce')
+                        if pd.notnull(dt): l_dt = dt
+                    if not l_dt: continue
+                    target = str(r[1]).strip()
+                    if target not in ["", "-", "•", ".", "Ціль", "Мінування"]:
+                        qty = to_native(r[2])
+                        st_raw = str(r[3]).strip()
+                        
+                        vp, vq = get_urazh_data(qty, target, st_raw)
+                        
+                        # Додаємо запис для зведеної статистики (фіксуємо загальну кількість qty)
+                        if qty > 0:
+                            urazh_all_units.append({
+                                "D": l_dt,
+                                "Battalion": b_name,
+                                "Target": target,
+                                "Qty": qty,
+                                "Points": vp
+                            })
+            except:
+                continue
+
+        if urazh_all_units:
+            # Фільтруємо суворо за обраний місяць та рік
+            filtered_urazh = [r for r in urazh_all_units if r["D"].month == cur_m and r["D"].year == cur_y]
+        else:
+            filtered_urazh = []
+
+        if filtered_urazh:
+            df_urazh = pd.DataFrame(filtered_urazh)
+
+            # --- Побудова графіка загальних балів батальйону (для збереження візуалу вашого додатку) ---
+            st.markdown("#### 📊 Загальна динаміка верифікованих балів:")
+            labs = [f"{d}.{str(cur_m).zfill(2)}" for d in range(1, pd.Period(f"{cur_y}-{cur_m}").days_in_month + 1)]
+            vv = {l:0.0 for l in labs}
+            for r_u in filtered_urazh:
+                l = f"{r_u['D'].day}.{str(r_u['D'].month).zfill(2)}"
+                if l in vv: 
+                    vv[l] += r_u["Points"]
+            
+            fu = go.Figure()
+            fu.add_trace(go.Bar(x=labs, y=[vv[l] for l in labs], name='Верифіковані бали', marker_color='#92D050'))
+            fu.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white", xaxis=dict(type='category', tickangle=-45))
+            st.plotly_chart(fu, use_container_width=True)
+
+            # --- СТВОРЕННЯ ЗВЕДЕНОЇ ТАБЛИЦІ УРАЖЕНЬ ПО БАТАЛЬЙОНАХ ---
+            st.markdown("#### 📋 Порівняльна таблиця об'єктів ураження за підрозділами:")
+
+            # Робимо Pivot Table: рядки - Об'єкти, колонки - Батальйони, значення - сума кількості
+            pivot_df = df_urazh.pivot_table(
+                index="Target", 
+                columns="Battalion", 
+                values="Qty", 
+                aggfunc="sum"
+            )
+
+            # Гарантуємо наявність усіх батальйонів у таблиці, навіть якщо у когось повний 0
+            for b in unit_names:
+                if b not in pivot_df.columns:
+                    pivot_df[b] = 0.0
+
+            # Перевпорядковуємо колонки згідно з вашим списком, заповнюємо пусті місця нулями та переводимо в INT
+            pivot_df = pivot_df[unit_names].fillna(0).astype(int)
+            pivot_df.index.name = "Об'єкт ураження"
+
+            # Скидаємо індекс, щоб "Об'єкт ураження" став звичайною колонкою для виведення в Streamlit
+            pivot_df_final = pivot_df.reset_index()
+
+            # Функція стилізації: шукає максимальне значення у рядку серед батальйонів і підсвічує зеленим
+            def highlight_max_battalion(row):
+                # Створюємо масив стилів за замовчуванням (пустий рядок для кожної клітинки)
+                styles = [''] * len(row)
+                
+                # Витягуємо значення суто по батальйонах (пропускаємо колонку "Об'єкт ураження")
+                bat_values = row[unit_names]
+                max_val = bat_values.max()
+                
+                # Якщо максимальне значення 0, то нікого не підсвічуємо
+                if max_val <= 0:
+                    return styles
+                
+                # Перевіряємо кожен батальйон, чи є він лідером
+                for col_name in unit_names:
+                    if row[col_name] == max_val:
+                        # Отримуємо індекс цієї колонки в повному рядку
+                        idx = row.index.get_loc(col_name)
+                        # Застосовуємо приємний темно-зелений мілітарі фон із білим текстом для читабельності
+                        styles[idx] = 'background-color: #2E7D32; color: #FFFFFF; font-weight: bold; border-radius: 4px;'
+                
+                return styles
+
+            # Застосовуємо стилізацію по рядках (axis=1)
+            styled_pivot = pivot_df_final.style.apply(highlight_max_battalion, axis=1)
+
+            # Виводимо гарну таблицю на всю ширину без зайвих індексів
+            st.dataframe(styled_pivot, use_container_width=True, hide_index=True)
+
+        else:
+            st.info(f"ℹ️ Немає знайдених даних про ураження за період {sel_ur}.")
 
 except Exception as e:
     st.error(f"СИСТЕМНА ПОМИЛКА: {e}")
