@@ -405,7 +405,7 @@ try:
 
         st.markdown(f"<h3 style='text-align:center; color:white;'>🔥 МОНІТОРИНГ УРАЖЕНЬ ЗА {sel_ur} </h3>", unsafe_allow_html=True)
         
-        # 2. Збір даних по всіх підрозділах (використовуємо твою надійну логіку з першого блоку)
+        # 2. Збір даних по всіх підрозділах
         unit_names = ["1аемб", "2аемб", "3аемб", "4аемб", "ЗРДН"]
         urazh_all_units = []
 
@@ -430,49 +430,29 @@ try:
                     target = str(r[1]).strip()
                     if target not in ["", "-", "•", ".", "Ціль", "Мінування"]:
                         qty = to_native(r[2])
-                        st_raw = str(r[3]).strip()
-                        
-                        vp, vq = get_urazh_data(qty, target, st_raw)
-                        
-                        # Додаємо запис для зведеної статистики (фіксуємо загальну кількість qty)
                         if qty > 0:
                             urazh_all_units.append({
                                 "D": l_dt,
                                 "Battalion": b_name,
                                 "Target": target,
-                                "Qty": qty,
-                                "Points": vp
+                                "Qty": qty
                             })
             except:
                 continue
 
         if urazh_all_units:
-            # Фільтруємо суворо за обраний місяць та рік
+            # Фільтруємо за обраний місяць та рік
             filtered_urazh = [r for r in urazh_all_units if r["D"].month == cur_m and r["D"].year == cur_y]
         else:
             filtered_urazh = []
 
+        # 3. Відображення таблиці
         if filtered_urazh:
             df_urazh = pd.DataFrame(filtered_urazh)
 
-            # --- Побудова графіка загальних балів батальйону (для збереження візуалу вашого додатку) ---
-            st.markdown("#### 📊 Загальна динаміка верифікованих балів:")
-            labs = [f"{d}.{str(cur_m).zfill(2)}" for d in range(1, pd.Period(f"{cur_y}-{cur_m}").days_in_month + 1)]
-            vv = {l:0.0 for l in labs}
-            for r_u in filtered_urazh:
-                l = f"{r_u['D'].day}.{str(r_u['D'].month).zfill(2)}"
-                if l in vv: 
-                    vv[l] += r_u["Points"]
-            
-            fu = go.Figure()
-            fu.add_trace(go.Bar(x=labs, y=[vv[l] for l in labs], name='Верифіковані бали', marker_color='#92D050'))
-            fu.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white", xaxis=dict(type='category', tickangle=-45))
-            st.plotly_chart(fu, use_container_width=True)
-
-            # --- СТВОРЕННЯ ЗВЕДЕНОЇ ТАБЛИЦІ УРАЖЕНЬ ПО БАТАЛЬЙОНАХ ---
             st.markdown("#### 📋 Порівняльна таблиця об'єктів ураження за підрозділами:")
 
-            # Робимо Pivot Table: рядки - Об'єкти, колонки - Батальйони, значення - сума кількості
+            # Створюємо Pivot Table (Об'єкти в рядки, Батальйони в колонки)
             pivot_df = df_urazh.pivot_table(
                 index="Target", 
                 columns="Battalion", 
@@ -480,45 +460,33 @@ try:
                 aggfunc="sum"
             )
 
-            # Гарантуємо наявність усіх батальйонів у таблиці, навіть якщо у когось повний 0
+            # Перевіряємо, щоб усі батальйони були в колонках
             for b in unit_names:
                 if b not in pivot_df.columns:
                     pivot_df[b] = 0.0
 
-            # Перевпорядковуємо колонки згідно з вашим списком, заповнюємо пусті місця нулями та переводимо в INT
+            # Сортуємо колонки, заміняємо NaN на 0 та переводимо в INT
             pivot_df = pivot_df[unit_names].fillna(0).astype(int)
             pivot_df.index.name = "Об'єкт ураження"
-
-            # Скидаємо індекс, щоб "Об'єкт ураження" став звичайною колонкою для виведення в Streamlit
             pivot_df_final = pivot_df.reset_index()
 
-            # Функція стилізації: шукає максимальне значення у рядку серед батальйонів і підсвічує зеленим
+            # Функція для підсвічування лідера зеленим кольором
             def highlight_max_battalion(row):
-                # Створюємо масив стилів за замовчуванням (пустий рядок для кожної клітинки)
                 styles = [''] * len(row)
-                
-                # Витягуємо значення суто по батальйонах (пропускаємо колонку "Об'єкт ураження")
                 bat_values = row[unit_names]
                 max_val = bat_values.max()
                 
-                # Якщо максимальне значення 0, то нікого не підсвічуємо
                 if max_val <= 0:
                     return styles
                 
-                # Перевіряємо кожен батальйон, чи є він лідером
                 for col_name in unit_names:
                     if row[col_name] == max_val:
-                        # Отримуємо індекс цієї колонки в повному рядку
                         idx = row.index.get_loc(col_name)
-                        # Застосовуємо приємний темно-зелений мілітарі фон із білим текстом для читабельності
                         styles[idx] = 'background-color: #2E7D32; color: #FFFFFF; font-weight: bold; border-radius: 4px;'
-                
                 return styles
 
-            # Застосовуємо стилізацію по рядках (axis=1)
+            # Застосовуємо стилі та виводимо таблицю
             styled_pivot = pivot_df_final.style.apply(highlight_max_battalion, axis=1)
-
-            # Виводимо гарну таблицю на всю ширину без зайвих індексів
             st.dataframe(styled_pivot, use_container_width=True, hide_index=True)
 
         else:
