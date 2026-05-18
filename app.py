@@ -406,7 +406,7 @@ try:
         st.markdown(f"<h3 style='text-align:center; color:white;'>🔥 МОНІТОРИНГ УРАЖЕНЬ ЗА {sel_ur} </h3>", unsafe_allow_html=True)
         
         # 2. Збір даних по всіх підрозділах
-        unit_names = ["1аемб", "2аемб", "3аемб", "4аемб", "ЗРДН"]
+        unit_names = ["1аемб", "2аемб", "3аемб", "4аемб"]
         urazh_all_units = []
 
         for b_name in unit_names:
