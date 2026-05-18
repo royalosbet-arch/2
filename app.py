@@ -111,7 +111,7 @@ if not st.session_state["intro_shown"]:
     st.markdown('<p class="boot-text">СИНХРОНІЗАЦІЯ З БАЗОЮ ДАНИХ... ЗАВАНТАЖЕННЯ СИСТЕМИ</p>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
     
-    time.sleep(2.5)
+    time.sleep(4.5)
     st.session_state["intro_shown"] = True
     st.rerun()
 
