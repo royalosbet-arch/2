@@ -23,7 +23,7 @@ POINTS_MAP = {
 }
 
 MONTHS_UKR = {1:"Січень", 2:"Лютий", 3:"Березень", 4:"Квітень", 5:"Травень", 6:"Червень", 7:"Липень", 8:"Серпень", 9:"Вересень", 10:"Жовтень", 11:"Листопад", 12:"Грудень"}
-CLRS = {'1аемб': '#92D050', '2аемб': '#A5A5A5', '3аемб': '#4472C4', '4аемб': '#ED7D31', 'ЗРДН': '#FFC000'}
+CLRS = {'1аемб': '#92D050', '2аемб': '#A5A5A5', '3аемб': '#4472C4', '4аемб': '#ED7D31'}
 MINE_CLR = "#7030A0"
 
 # =================================================================
@@ -96,7 +96,7 @@ if not st.session_state["intro_shown"]:
             align-items: center;
             justify-content: center;
             margin-bottom: 30px;
-            animation: pulseRadar 5s infinite ease-in-out;
+            animation: pulseRadar 6s infinite ease-in-out;
         }
         @keyframes pulseRadar {
             0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 215, 0, 0.4); opacity: 0.7; }
@@ -108,7 +108,7 @@ if not st.session_state["intro_shown"]:
             font-weight: 800;
             letter-spacing: 4px;
             text-transform: uppercase;
-            animation: blinkText 1.5s infinite;
+            animation: blinkText 2s infinite;
             margin: 0;
             padding: 0 20px;
         }
@@ -140,7 +140,7 @@ if "password_correct" not in st.session_state:
     st.markdown("""
         <style>
         .stApp { background-color: #0E1117; }
-        .fade-in-element { animation: fadeInSmooth 1.2s ease-out forwards; }
+        .fade-in-element { animation: fadeInSmooth 2s ease-out forwards; }
         @keyframes fadeInSmooth {
             from { opacity: 0; transform: translateY(15px); }
             to { opacity: 1; transform: translateY(0); }
@@ -203,7 +203,7 @@ try:
         cur_y = int(sel_report_month.split(".")[1])
 
         st.markdown(f"<h3 style='text-align:center; color:white;'>⚔️ ЗАГАЛЬНОБРИГАДНИЙ МОНІТОРИНГ {sel_report_month} </h3>", unsafe_allow_html=True)
-        unit_names = ["1аемб", "2аемб", "3аемб", "4аемб", "ЗРДН"]
+        unit_names = ["1аемб", "2аемб", "3аемб", "4аемб"]
         all_results = []
 
         for b_name in unit_names:
