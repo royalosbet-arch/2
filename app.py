@@ -198,7 +198,7 @@ if st.sidebar.button('🔄 ОНОВИТИ ДАНІ'):
 
 try:
     if category == "⚔️ Бригадні звіти":
-        sel_report_month = st.selectbox("ОБЕРІТЬ МІСЯЦЬ ДЛЯ ПЕРЕГЛЯДУ ЗВІТУ:", ["05.2026", "04.2026"])
+        sel_report_month = st.selectbox("ОБЕРІТЬ МІСЯЦЬ ДЛЯ ПЕРЕГЛЯДУ ЗВІТУ:", ["07.2026", "05.2026", "04.2026"])
         prefix = sel_report_month.split(".")[0]
         cur_m = int(prefix)
         cur_y = int(sel_report_month.split(".")[1])
@@ -395,7 +395,7 @@ try:
             st.plotly_chart(fm, use_container_width=True)
 
     elif category == "🔥 Ураження":
-        sel_ur = st.selectbox("ОБЕРІТЬ ПЕРІОД ДЛЯ АНАЛІТИКИ УРАЖЕНЬ:", ["05.2026", "04.2026", "03.2026", "02.2026", "01.2026"])
+        sel_ur = st.selectbox("ОБЕРІТЬ ПЕРІОД ДЛЯ АНАЛІТИКИ УРАЖЕНЬ:", ["07.2026", "05.2026", "04.2026", "03.2026", "02.2026", "01.2026"])
         prefix = sel_ur.split(".")[0]
         cur_m = int(prefix)
         cur_y = int(sel_ur.split(".")[1])
