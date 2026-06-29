@@ -466,4 +466,36 @@ st.markdown("""
         z-index: 999999;
         font-family: "Inter", sans-serif;
         text-align: left;
-        box-shadow: 0px 4px 10px rgba(0,0,0,0.6
+        box-shadow: 0px 4px 10px rgba(0,0,0,0.6);
+        backdrop-filter: blur(5px);
+        transition: all 0.3s ease;
+    }
+    .support-card:hover {
+        border-color: rgba(255, 215, 0, 0.5);
+        background-color: rgba(14, 17, 23, 0.98);
+    }
+    .support-title {
+        margin: 0 0 4px 0;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.5px;
+        color: #ffd700;
+        text-transform: uppercase;
+    }
+    .support-text {
+        margin: 1px 0;
+        font-size: 11px;
+        color: #e0e0e0;
+    }
+    .support-label {
+        color: #888888;
+        font-size: 10px;
+        font-weight: 600;
+    }
+    </style>
+    <div class="support-card">
+        <p class="support-title">⚙️ ТЕХ. ДОПОМОГА</p>
+        <p class="support-text"><span class="support-label">WhatsApp:</span> +380 67 485 95 90</p>
+        <p class="support-text"><span class="support-label">Delta:</span> Usignolo</p>
+    </div>
+""", unsafe_allow_html=True)
