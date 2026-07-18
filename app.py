@@ -11,7 +11,7 @@ from datetime import datetime
 # =================================================================
 # 1. НАЛАШТУВАННЯ ТА КОНСТАНТИ
 # =================================================================
-st.set_page_config(page_title="СИТУАЦІЙНИЙ ЦЕНТР 1 аемб", layout="wide", page_icon="🛡️")
+st.set_page_config(page_title="СИТУАЦІЙНИЙ ЦЕНТР 1 аемб", layout="wide", page_icon="️")
 
 USER_PASSWORD = "2887"
 POINTS_MAP = {
@@ -177,14 +177,15 @@ st.markdown(f"""
 # =================================================================
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-category = st.sidebar.radio("НАПРЯМОК РОБОТИ:", ["⚔️ Бригадні звіти", "🔥 Ураження"])
+# УВАГА: перевір що тут є ⚔️ та 🔥
+category = st.sidebar.radio("НАПРЯМОК РОБОТИ:", ["️ Бригадні звіти", " Ураження"])
 
 if st.sidebar.button('🔄 ОНОВИТИ ДАНІ'):
     st.cache_data.clear()
     st.rerun()
 
 # =================================================================
-# ДОДАНО: ЕМБЛЕМА В SIDEBAR
+# ЕМБЛЕМА В SIDEBAR (вставити ПІСЛЯ кнопки оновити дані)
 # =================================================================
 st.sidebar.markdown("<br>", unsafe_allow_html=True)
 
@@ -192,25 +193,49 @@ try:
     emblem_base64 = get_base64("emblem.png")
     if emblem_base64:
         st.sidebar.markdown(f"""
-            <div style='text-align: center; padding: 15px; margin-top: 20px;'>
-                <img src='data:image/png;base64,{emblem_base64}' 
-                     style='width: 100%; max-width: 250px; border-radius: 10px; 
-                            box-shadow: 0 0 20px rgba(255, 100, 0, 0.3);'>
+            <style>
+            .emblem-box {{
+                text-align: center;
+                padding: 10px;
+                margin-top: 20px;
+                border-radius: 10px;
+                background: rgba(255, 100, 0, 0.05);
+                border: 1px solid rgba(255, 100, 0, 0.1);
+            }}
+            .emblem-img {{
+                width: 100%;
+                max-width: 220px;
+                border-radius: 8px;
+                opacity: 0.6;
+                filter: brightness(0.8) contrast(0.9);
+                transition: all 0.3s ease;
+            }}
+            .emblem-box:hover .emblem-img {{
+                opacity: 0.85;
+                filter: brightness(1) contrast(1);
+                transform: scale(1.02);
+            }}
+            </style>
+            <div class='emblem-box'>
+                <img src='data:image/png;base64,{emblem_base64}' class='emblem-img'>
             </div>
         """, unsafe_allow_html=True)
 except:
     pass
 
+# =================================================================
+# ОСНОВНИЙ КОД
+# =================================================================
 try:
-    if category == "️ Бригадні звіти":
+    # УВАГА: тут теж має бути ⚔️
+    if category == "⚔️ Бригадні звіти":
         sel_report_month = st.selectbox("ОБЕРІТЬ МІСЯЦЬ ДЛЯ ПЕРЕГЛЯДУ ЗВІТУ:", ["07.2026", "06.2026", "05.2026", "04.2026"])
         prefix = sel_report_month.split(".")[0]
         cur_m = int(prefix)
         cur_y = int(sel_report_month.split(".")[1])
 
-        st.markdown(f"<h2 style='text-align:center; color:#ffd700; text-shadow: 2px 2px 8px rgba(0,0,0,0.95); font-weight: 800; letter-spacing: 1px;'>️ ЗАГАЛЬНОБРИГАДНИЙ МОНІТОРИНГ {sel_report_month} </h2>", unsafe_allow_html=True)
+        st.markdown(f"<h2 style='text-align:center; color:#ffd700; text-shadow: 2px 2px 8px rgba(0,0,0,0.95); font-weight: 800; letter-spacing: 1px;'>⚔️ ЗАГАЛЬНОБРИГАДНИЙ МОНІТОРИНГ {sel_report_month} </h2>", unsafe_allow_html=True)
         
-        # ВИПРАВЛЕНО: Яскраво-зелений колір (#00E676)
         now_str = datetime.now().strftime("%d.%m.%Y о %H:%M")
         st.markdown(f"<p style='text-align:center; color:#00E676; font-size: 15px; margin-top: -10px; margin-bottom: 25px; font-weight: 700;'>🕒 Дані оновлені на: {now_str}</p>", unsafe_allow_html=True)
         
@@ -293,15 +318,9 @@ try:
             sel_b = st.selectbox("ДЕТАЛІЗАЦІЯ ПІДРОЗДІЛУ:", unit_names)
             u_res = [r for r in filtered if r["B"] == sel_b]
             
-            # Поточні верифіковані бали
             u_total_pts = int(sum(r["PU"] + r["PM"] for r in u_res))
-            
-            # Бали на верифікації (для прогнозу)
             u_pending_pts = sum(r["QPE"] for r in u_res)
             
-            # =================================================================
-            # НОВИЙ БЛОК: ПРОГНОЗ ТА МЕТРИКИ (Варіант A)
-            # =================================================================
             now = datetime.now()
             current_day = now.day
             days_in_month = calendar.monthrange(cur_y, cur_m)[1]
@@ -311,7 +330,6 @@ try:
             if current_day == 0:
                 current_day = 1
                 
-            # НОВА ЛОГІКА: (верифіковано + на верифікації) / поточний день * днів у місяці
             total_for_forecast = u_total_pts + u_pending_pts
             daily_avg = total_for_forecast / current_day
             forecast = int(daily_avg * days_in_month)
@@ -319,10 +337,10 @@ try:
             
             col1, col2, col3 = st.columns(3)
             with col1:
-                st.metric(label="💰 Поточні бали", value=u_total_pts)
+                st.metric(label=" Поточні бали", value=u_total_pts)
             with col2:
                 st.metric(
-                    label=" Прогноз на кінець місяця", 
+                    label="📈 Прогноз на кінець місяця", 
                     value=forecast, 
                     delta=f"+{remaining_to_forecast} до прогнозу", 
                     delta_color="normal"
@@ -335,7 +353,6 @@ try:
                     delta_color="off"
                 )
             st.markdown("<br>", unsafe_allow_html=True)
-            # =================================================================
 
             u_table = []
             for t in sorted(list(set([r["T"] for r in u_res]))):
@@ -397,7 +414,7 @@ try:
         cur_m = int(prefix)
         cur_y = int(sel_ur.split(".")[1])
 
-        st.markdown(f"<h2 style='text-align:center; color:#ffd700; text-shadow: 2px 2px 8px rgba(0,0,0,0.95); font-weight: 800; letter-spacing: 1px;'>🔥 МОНІТОРИНГ УРАЖЕНЬ ЗА {sel_ur} </h2>", unsafe_allow_html=True)
+        st.markdown(f"<h2 style='text-align:center; color:#ffd700; text-shadow: 2px 2px 8px rgba(0,0,0,0.95); font-weight: 800; letter-spacing: 1px;'> МОНІТОРИНГ УРАЖЕНЬ ЗА {sel_ur} </h2>", unsafe_allow_html=True)
         
         unit_names = ["1аемб", "2аемб", "3аемб", "4аемб"]
         urazh_all_units = []
@@ -455,7 +472,7 @@ try:
         if urazh_all_units:
             df_urazh = pd.DataFrame(urazh_all_units)
             st.markdown("<br>", unsafe_allow_html=True)
-            st.markdown("####  Порівняльна таблиця об'єктів ураження та мінувань за підрозділами:")
+            st.markdown("#### 📋 Порівняльна таблиця об'єктів ураження та мінувань за підрозділами:")
 
             pivot_df = df_urazh.pivot_table(index="Target", columns="Battalion", values="Qty", aggfunc="sum")
 
