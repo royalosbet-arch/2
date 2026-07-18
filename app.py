@@ -4,7 +4,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import base64
 import re
-import time  # Додано для затримки заставки
+import time
 from datetime import datetime
 
 # =================================================================
@@ -175,7 +175,9 @@ st.markdown(f"""
 # 4. НАВІГАЦІЯ ТА ДАНІ
 # =================================================================
 conn = st.connection("gsheets", type=GSheetsConnection)
-category = st.sidebar.radio("НАПРЯМОК РОБОТИ:", ["⚔️ Бригадні звіти", "🧨 Мінування", "🔥 Ураження"])
+
+# ВИДАЛЕНО розділ "🧨 Мінування" з навігації
+category = st.sidebar.radio("НАПРЯМОК РОБОТИ:", ["⚔️ Бригадні звіти", "🔥 Ураження"])
 
 if st.sidebar.button('🔄 ОНОВИТИ ДАНІ'):
     st.cache_data.clear()
@@ -189,6 +191,11 @@ try:
         cur_y = int(sel_report_month.split(".")[1])
 
         st.markdown(f"<h2 style='text-align:center; color:#ffd700; text-shadow: 2px 2px 8px rgba(0,0,0,0.95); font-weight: 800; letter-spacing: 1px;'>⚔️ ЗАГАЛЬНОБРИГАДНИЙ МОНІТОРИНГ {sel_report_month} </h2>", unsafe_allow_html=True)
+        
+        # ДОДАНО: Мітка часу оновлення даних
+        now_str = datetime.now().strftime("%d.%m.%Y о %H:%M")
+        st.markdown(f"<p style='text-align:center; color:#a0a0a0; font-size: 14px; margin-top: -10px; margin-bottom: 25px; font-weight: 600;'>🕒 Дані оновлені на: {now_str}</p>", unsafe_allow_html=True)
+        
         unit_names = ["1аемб", "2аемб", "3аемб", "4аемб"]
         all_results = []
 
@@ -329,29 +336,38 @@ try:
                 else:
                     st.success("✅ У цього підрозділу за обраний період немає жодного не верифікованого об'єкта.")
 
-    elif category == "🧨 Мінування":
-        sel_m_mine = st.selectbox("ОБЕРІТЬ ПЕРІОД ДЛЯ АНАЛІТИКИ МІНУВАНЬ:", ["07.2026", "06.2026", "05.2026", "04.2026"])
-        prefix = sel_m_mine.split(".")[0]
+    elif category == "🔥 Ураження":
+        sel_ur = st.selectbox("ОБЕРІТЬ ПЕРІОД ДЛЯ АНАЛІТИКИ:", ["07.2026", "06.2026", "05.2026", "04.2026"])
+        prefix = sel_ur.split(".")[0]
         cur_m = int(prefix)
-        cur_y = int(sel_m_mine.split(".")[1])
+        cur_y = int(sel_ur.split(".")[1])
 
-        st.markdown(f"<h2 style='text-align:center; color:#ffd700; text-shadow: 2px 2px 8px rgba(0,0,0,0.95); font-weight: 800; letter-spacing: 1px;'>🧨 МОНІТОРИНГ МІНУВАНЬ ЗА {sel_m_mine} </h2>", unsafe_allow_html=True)
+        st.markdown(f"<h2 style='text-align:center; color:#ffd700; text-shadow: 2px 2px 8px rgba(0,0,0,0.95); font-weight: 800; letter-spacing: 1px;'>🔥 МОНІТОРИНГ УРАЖЕНЬ ТА МІНУВАНЬ ЗА {sel_ur} </h2>", unsafe_allow_html=True)
         
         unit_names = ["1аемб", "2аемб", "3аемб", "4аемб"]
-        mine_chart_data = []
+        urazh_all_units = []
+        mine_chart_data = [] # Новий список для збору даних по мінуваннях
 
-        # Динамічно скануємо місячні аркуші всіх підрозділів на наявність рядків "Мінування"
         for b_name in unit_names:
             sheet_name = f"{prefix}.{b_name}"
-            v_sum, unv_sum = 0.0, 0.0
+            v_sum, unv_sum = 0.0, 0.0 # Змінні для підрахунку мінувань
+            
             try:
                 df_unit = conn.read(worksheet=sheet_name, ttl=300, header=None).fillna("")
                 u_rows = df_unit.values.tolist()
+                l_dt = None
+                
                 for r in u_rows[1:]:
+                    if str(r[0]).strip() != "":
+                        dt = pd.to_datetime(str(r[0]), dayfirst=True, errors='coerce')
+                        if pd.notnull(dt): l_dt = dt
+                    if not l_dt: continue
+                    
                     target = str(r[1]).strip()
                     qty = to_native(r[2])
                     st_clean = str(r[3]).lower().strip()
                     
+                    # 1. ЛОГІКА ПІДРАХУНКУ МІНУВАНЬ (перенесена з розділу Мінування)
                     if target == "Мінування":
                         if "не вериф" in st_clean:
                             match = re.search(r'(\d+)', st_clean)
@@ -362,16 +378,28 @@ try:
                             v_sum += qty
                         else:
                             unv_sum += qty
-                    # Також рахуємо старий 5-й стовпчик для сумісності з минулими місяцями
+                    # Також рахуємо старий 5-й стовпчик для сумісності
                     elif len(r) > 4:
                         v_mine = to_native(r[4])
                         if v_mine > 0:
                             v_sum += v_mine
-            except:
-                pass
-            
-            mine_chart_data.append({"Підрозділ": b_name, "Верифіковано": v_sum, "Не верифіковано": unv_sum})
+                            
+                    # 2. ЛОГІКА ДЛЯ ЗВИЧАЙНИХ УРАЖЕНЬ
+                    if target not in ["", "-", "•", ".", "Ціль", "Мінування"]:
+                        if qty > 0 and l_dt.month == cur_m and l_dt.year == cur_y:
+                            urazh_all_units.append({
+                                "D": l_dt, "Battalion": b_name, "Target": target, "Qty": qty
+                            })
+                
+                # Додаємо агреговані дані по мінуванню для цього підрозділу
+                mine_chart_data.append({"Підрозділ": b_name, "Верифіковано": v_sum, "Не верифіковано": unv_sum})
+                    
+            except: continue
 
+        # --- ВІДОБРАЖЕННЯ БЛОКУ МІНУВАНЬ ---
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("<h3 style='color:#ffd700; text-align:center;'>🧨 ЗВІТ ПО МІНУВАННЯМ</h3>", unsafe_allow_html=True)
+        
         df_g = pd.DataFrame(mine_chart_data)
         total_v_all = int(df_g["Верифіковано"].sum())
         st.metric("ВЕРИФІКОВАНО МІН СУМАРНО ПО БАТАЛЬЙОНУ:", total_v_all)
@@ -379,47 +407,15 @@ try:
         fm = go.Figure()
         fm.add_trace(go.Bar(x=df_g["Підрозділ"], y=df_g["Верифіковано"], name='Верифіковано', marker_color='#2E7D32'))
         fm.add_trace(go.Bar(x=df_g["Підрозділ"], y=df_g["Не верифіковано"], name='Не верифіковано', marker_color='#CC0000'))
-        fm.update_layout(barmode='stack', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white")
+        fm.update_layout(barmode='stack', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white", margin=dict(t=20, b=20, l=20, r=20))
         st.plotly_chart(fm, use_container_width=True)
 
-    elif category == "🔥 Ураження":
-        sel_ur = st.selectbox("ОБЕРІТЬ ПЕРІОД ДЛЯ АНАЛІТИКИ УРАЖЕНЬ:", ["07.2026", "06.2026", "05.2026", "04.2026"])
-        prefix = sel_ur.split(".")[0]
-        cur_m = int(prefix)
-        cur_y = int(sel_ur.split(".")[1])
-
-        st.markdown(f"<h2 style='text-align:center; color:#ffd700; text-shadow: 2px 2px 8px rgba(0,0,0,0.95); font-weight: 800; letter-spacing: 1px;'>🔥 МОНІТОРИНГ УРАЖЕНЬ ЗА {sel_ur} </h2>", unsafe_allow_html=True)
-        
-        unit_names = ["1аемб", "2аемб", "3аемб", "4аемб"]
-        urazh_all_units = []
-
-        for b_name in unit_names:
-            sheet_name = f"{prefix}.{b_name}"
-            try:
-                df_unit = conn.read(worksheet=sheet_name, ttl=300, header=None).fillna("")
-                u_rows = df_unit.values.tolist()
-                l_dt = None
-                for r in u_rows[1:]:
-                    if str(r[0]).strip() != "":
-                        dt = pd.to_datetime(str(r[0]), dayfirst=True, errors='coerce')
-                        if pd.notnull(dt): l_dt = dt
-                    if not l_dt: continue
-                    target = str(r[1]).strip()
-                    if target not in ["", "-", "•", ".", "Ціль", "Мінування"]:
-                        qty = to_native(r[2])
-                        if qty > 0:
-                            urazh_all_units.append({
-                                "D": l_dt, "Battalion": b_name, "Target": target, "Qty": qty
-                            })
-            except: continue
+        # --- ВІДОБРАЖЕННЯ БЛОКУ УРАЖЕНЬ ---
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("<h3 style='color:#ffd700; text-align:center;'>🔥 ЗВІТ ПО УРАЖЕННЯХ ЦІЛЕЙ</h3>", unsafe_allow_html=True)
 
         if urazh_all_units:
-            filtered_urazh = [r for r in urazh_all_units if r["D"].month == cur_m and r["D"].year == cur_y]
-        else:
-            filtered_urazh = []
-
-        if filtered_urazh:
-            df_urazh = pd.DataFrame(filtered_urazh)
+            df_urazh = pd.DataFrame(urazh_all_units)
             st.markdown("#### 📋 Порівняльна таблиця об'єктів ураження за підрозділами:")
 
             pivot_df = df_urazh.pivot_table(index="Target", columns="Battalion", values="Qty", aggfunc="sum")
