@@ -67,14 +67,54 @@ def get_urazh_data(qty, target, status):
         return qty * unit_p, qty
     return 0.0, 0.0
 
-def get_dynamic_months(count=6):
-    """Генерує список останніх N місяців у форматі 'MM.YYYY'."""
-    months = []
-    today = datetime.now().replace(day=1)
-    for i in range(count):
-        d = today - timedelta(days=i * 30)
-        months.append(f"{d.month:02d}.{d.year}")
-    return months
+def get_available_months(conn):
+    """Виявляє доступні місяці з Google Sheets. Якщо не вдається — повертає hardcoded список."""
+    try:
+        # Намагаємось отримати список аркушів через внутрішній об'єкт gspread
+        spreadsheet = None
+        for attr in ['_spreadsheet', '_instance', '_client']:
+            if hasattr(conn, attr):
+                obj = getattr(conn, attr)
+                if obj and hasattr(obj, 'worksheets'):
+                    spreadsheet = obj
+                    break
+
+        if spreadsheet:
+            ws_list = spreadsheet.worksheets()
+            month_nums = set()
+            for ws in ws_list:
+                # Аркуші називаються "04.1аемб", "05.2аемб" і т.д.
+                match = re.match(r'^(\d{2})\.[1-4]аемб', ws.title)
+                if match:
+                    month_nums.add(int(match.group(1)))
+
+            if month_nums:
+                # Визначаємо рік з даних найсвіжішого аркуша
+                data_year = None
+                for m in sorted(month_nums, reverse=True):
+                    for b in ["1аемб", "2аемб", "3аемб", "4аемб"]:
+                        try:
+                            df_test = conn.read(worksheet=f"{m:02d}.{b}", ttl=300, header=None).fillna("")
+                            for row in df_test.values.tolist()[1:5]:
+                                if str(row[0]).strip():
+                                    dt = pd.to_datetime(str(row[0]), dayfirst=True, errors='coerce')
+                                    if pd.notnull(dt):
+                                        data_year = dt.year
+                                        break
+                            if data_year:
+                                break
+                        except:
+                            continue
+                    if data_year:
+                        break
+
+                if data_year:
+                    return [f"{m:02d}.{data_year}" for m in sorted(month_nums, reverse=True)]
+    except:
+        pass
+
+    # Fallback — ваш оригінальний список
+    return ["07.2026", "06.2026", "05.2026", "04.2026"]
 
 # =================================================================
 # ЄДИНА ФУНКЦІЯ ПАРСИНГУ ДАНИХ
