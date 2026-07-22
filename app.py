@@ -1040,7 +1040,7 @@ st.markdown("""
     </style>
     <div class="support-card">
         <p class="support-title">⚙️ ТЕХ. ДОПОМОГА</p>
-        <p class="support-text"><span class="support-label">WhatsApp:</span> +380 67 485 95 90</p>
+        <p class="support-text"><span class="support-label">WhatsApp:</span> +380 63 866 86 86</p>
         <p class="support-text"><span class="support-label">Delta:</span> Usignolo</p>
     </div>
 """, unsafe_allow_html=True)
