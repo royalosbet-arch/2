@@ -403,19 +403,34 @@ try:
             u_total_pts = int(sum(r["PU"] + r["PM"] for r in u_res))
             u_pending_pts = sum(r["QPE"] for r in u_res)
 
-            now = datetime.now()
-            current_day = now.day
-            days_in_month = calendar.monthrange(cur_y, cur_m)[1]
+           # ----------------- ВИПРАВЛЕНИЙ КОД -----------------
+now = datetime.now()
+days_in_month = calendar.monthrange(cur_y, cur_m)[1]
 
-            if current_day > days_in_month:
-                current_day = days_in_month
-            if current_day == 0:
-                current_day = 1
+# Визначаємо, скільки днів пройдено саме для ОБРАНОГО місяця (cur_m, cur_y)
+if (cur_y < now.year) or (cur_y == now.year and cur_m < now.month):
+    # Якщо місяць уже минув — пройшли всі дні місяця
+    current_day = days_in_month
+elif cur_y == now.year and cur_m == now.month:
+    # Якщо це поточний місяць — беремо поточний день
+    current_day = now.day
+else:
+    # Якщо це майбутній місяць
+    current_day = 0
 
-            total_for_forecast = u_total_pts + u_pending_pts
-            daily_avg = total_for_forecast / current_day if current_day > 0 else 0
-            forecast = int(daily_avg * days_in_month)
-            remaining_to_forecast = forecast - u_total_pts
+total_for_forecast = u_total_pts + u_pending_pts
+
+if current_day >= days_in_month:
+    # Якщо місяць завершено, прогноз дорівнює фактичному підсумку
+    forecast = u_total_pts
+    remaining_to_forecast = 0
+elif current_day > 0:
+    daily_avg = total_for_forecast / current_day
+    forecast = int(daily_avg * days_in_month)
+    remaining_to_forecast = forecast - u_total_pts
+else:
+    forecast = 0
+    remaining_to_forecast = 0
 
             col1, col2, col3 = st.columns(3)
             with col1:
