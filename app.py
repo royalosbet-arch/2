@@ -379,7 +379,8 @@ if st.sidebar.button('🔄 ОНОВИТИ ДАНІ'):
 
 unit_names = ["1аемб", "2аемб", "3аемб", "4аемб"]
 
-if category == "⚔️ Бригадні звіти":
+try:
+    if category == "⚔️ Бригадні звіти":
         sel_report_month = st.selectbox("ОБЕРІТЬ МІСЯЦЬ ДЛЯ ПЕРЕГЛЯДУ ЗВІТУ:", AVAILABLE_MONTHS)
         prefix = sel_report_month.split(".")[0]
         cur_m = int(prefix)
