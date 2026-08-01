@@ -108,8 +108,14 @@ def parse_battalion_data(conn, unit_names, prefix, cur_m, cur_y):
                 st_clean = st_raw.lower().strip()
                 reason = ""
 
+                # Розрахунок вартості цілі в балах
+                t_norm = target.replace("  ", " ")
+                unit_p = POINTS_MAP.get(t_norm, 0)
+                if unit_p == 0:
+                    lower_map = {k.lower(): v for k, v in POINTS_MAP.items()}
+                    unit_p = lower_map.get(t_norm.lower(), 0)
+
                 if target != "Мінування":
-                    t_norm = target.replace("  ", " ")
                     known = t_norm in POINTS_MAP or t_norm.lower() in {k.lower() for k in POINTS_MAP}
                     if not known and qty > 0:
                         validation_issues.append({
@@ -137,7 +143,7 @@ def parse_battalion_data(conn, unit_names, prefix, cur_m, cur_y):
 
                     all_results.append({
                         "D": l_dt, "B": b_name, "T": "Мінування", "PU": 0.0, "PM": qv_m,
-                        "QT": qty, "QV": qv_m, "QUN": qun_m, "QPE": qp_m, "Reason": reason
+                        "QT": qty, "QV": qv_m, "QUN": qun_m, "QPE": qp_m, "PPE": 0.0, "Reason": reason
                     })
                 else:
                     vp, vq = get_urazh_data(qty, target, st_raw)
@@ -154,9 +160,13 @@ def parse_battalion_data(conn, unit_names, prefix, cur_m, cur_y):
                     else:
                         q_unver, q_pend = 0.0, qty
 
+                    # ТУТ ПРАВИЛЬНО РАХУЮТЬСЯ БАЛИ НА ВЕРИФІКАЦІЇ (шт * бали)
+                    p_pending = q_pend * unit_p
+
                     all_results.append({
                         "D": l_dt, "B": b_name, "T": target, "PU": vp, "PM": 0.0,
-                        "QT": qty, "QV": q_ver, "QUN": q_unver, "QPE": q_pend, "Reason": reason
+                        "QT": qty, "QV": q_ver, "QUN": q_unver, "QPE": q_pend, 
+                        "PPE": p_pending, "Reason": reason
                     })
 
                 if target != "Мінування" and len(r) > 4:
@@ -164,7 +174,7 @@ def parse_battalion_data(conn, unit_names, prefix, cur_m, cur_y):
                     if v_mine > 0:
                         all_results.append({
                             "D": l_dt, "B": b_name, "T": "Мінування", "PU": 0.0, "PM": v_mine,
-                            "QT": v_mine, "QV": v_mine, "QUN": 0.0, "QPE": 0.0, "Reason": ""
+                            "QT": v_mine, "QV": v_mine, "QUN": 0.0, "QPE": 0.0, "PPE": 0.0, "Reason": ""
                         })
         except Exception as e:
             st.warning(f"⚠️ Помилка обробки даних підрозділу {b_name}: {e}")
@@ -380,7 +390,7 @@ if st.sidebar.button('🔄 ОНОВИТИ ДАНІ'):
 unit_names = ["1аемб", "2аемб", "3аемб", "4аемб"]
 
 try:
-    if category == "⚔️ Бригадні звіти":
+if category == "⚔️ Бригадні звіти":
         sel_report_month = st.selectbox("ОБЕРІТЬ МІСЯЦЬ ДЛЯ ПЕРЕГЛЯДУ ЗВІТУ:", AVAILABLE_MONTHS)
         prefix = sel_report_month.split(".")[0]
         cur_m = int(prefix)
@@ -401,9 +411,10 @@ try:
             u_res = [r for r in filtered if r["B"] == sel_b]
 
             u_total_pts = int(sum(r["PU"] + r["PM"] for r in u_res))
-            u_pending_pts = sum(r["QPE"] for r in u_res)
+            
+            # ТУТ ТЕПЕР БЕРУТЬСЯ СУМАРНІ БАЛИ ЗА ВЕРИФІКАЦІЮ, А НЕ ШТУКИ
+            u_pending_pts = int(sum(r.get("PPE", 0.0) for r in u_res))
 
-            # === РОЗРАХУНОК ДНІВ ТА ПРОГНОЗУ (З ВРАХУВАННЯМ ВЕРИФІКАЦІЇ) ===
             now = datetime.now()
             days_in_month = calendar.monthrange(cur_y, cur_m)[1]
 
@@ -417,8 +428,8 @@ try:
             total_for_forecast = u_total_pts + u_pending_pts
 
             if current_day >= days_in_month:
-                forecast = int(total_for_forecast)
-                remaining_to_forecast = int(u_pending_pts)
+                forecast = total_for_forecast
+                remaining_to_forecast = u_pending_pts
             elif current_day > 0:
                 daily_avg = total_for_forecast / current_day
                 forecast = int(daily_avg * days_in_month)
@@ -426,7 +437,6 @@ try:
             else:
                 forecast = 0
                 remaining_to_forecast = 0
-            # =============================================================
 
             col1, col2, col3 = st.columns(3)
             with col1:
