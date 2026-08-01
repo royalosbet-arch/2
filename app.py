@@ -416,20 +416,20 @@ try:
 
             # ----------------- ВИПРАВЛЕНИЙ БЛОК (З ВРАХУВАННЯМ НЕВЕРИФІКОВАНИХ БАЛІВ) -----------------
 # total_for_forecast враховує і поточні бали, і бали на верифікації
-total_for_forecast = u_total_pts + u_pending_pts
+    total_for_forecast = u_total_pts + u_pending_pts
 
-if current_day >= days_in_month:
+    if current_day >= days_in_month:
     # Якщо місяць завершено — прогноз дорівнює усім набраним балам (підтверджені + на верифікації)
-    forecast = int(total_for_forecast)
-    remaining_to_forecast = int(u_pending_pts)
-elif current_day > 0:
+        forecast = int(total_for_forecast)
+        remaining_to_forecast = int(u_pending_pts)
+    elif current_day > 0:
     # Якщо місяць триває — розраховуємо середньодобовий темп з урахуванням балів на верифікації
-    daily_avg = total_for_forecast / current_day
-    forecast = int(daily_avg * days_in_month)
-    remaining_to_forecast = forecast - u_total_pts
-else:
-    forecast = 0
-    remaining_to_forecast = 0
+        daily_avg = total_for_forecast / current_day
+        forecast = int(daily_avg * days_in_month)
+        remaining_to_forecast = forecast - u_total_pts
+    else:
+        forecast = 0
+        remaining_to_forecast = 0
             # ===================================================
 
             col1, col2, col3 = st.columns(3)
