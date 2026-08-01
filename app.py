@@ -390,7 +390,7 @@ if st.sidebar.button('🔄 ОНОВИТИ ДАНІ'):
 unit_names = ["1аемб", "2аемб", "3аемб", "4аемб"]
 
 try:
-if category == "⚔️ Бригадні звіти":
+    if category == "⚔️ Бригадні звіти":
         sel_report_month = st.selectbox("ОБЕРІТЬ МІСЯЦЬ ДЛЯ ПЕРЕГЛЯДУ ЗВІТУ:", AVAILABLE_MONTHS)
         prefix = sel_report_month.split(".")[0]
         cur_m = int(prefix)
@@ -412,7 +412,7 @@ if category == "⚔️ Бригадні звіти":
 
             u_total_pts = int(sum(r["PU"] + r["PM"] for r in u_res))
             
-            # ТУТ ТЕПЕР БЕРУТЬСЯ СУМАРНІ БАЛИ ЗА ВЕРИФІКАЦІЮ, А НЕ ШТУКИ
+            # ВРАХУВАННЯ СУМАРНИХ БАЛІВ (А НЕ ШТУК) НА ВЕРИФІКАЦІЇ
             u_pending_pts = int(sum(r.get("PPE", 0.0) for r in u_res))
 
             now = datetime.now()
