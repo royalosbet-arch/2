@@ -379,8 +379,7 @@ if st.sidebar.button('🔄 ОНОВИТИ ДАНІ'):
 
 unit_names = ["1аемб", "2аемб", "3аемб", "4аемб"]
 
-try:
-    if category == "⚔️ Бригадні звіти":
+if category == "⚔️ Бригадні звіти":
         sel_report_month = st.selectbox("ОБЕРІТЬ МІСЯЦЬ ДЛЯ ПЕРЕГЛЯДУ ЗВІТУ:", AVAILABLE_MONTHS)
         prefix = sel_report_month.split(".")[0]
         cur_m = int(prefix)
@@ -403,7 +402,7 @@ try:
             u_total_pts = int(sum(r["PU"] + r["PM"] for r in u_res))
             u_pending_pts = sum(r["QPE"] for r in u_res)
 
-            # === ВИПРАВЛЕНИЙ БЛОК РОЗРАХУНКУ ДНІВ ТА ПРОГНОЗУ ===
+            # === РОЗРАХУНОК ДНІВ ТА ПРОГНОЗУ (З ВРАХУВАННЯМ ВЕРИФІКАЦІЇ) ===
             now = datetime.now()
             days_in_month = calendar.monthrange(cur_y, cur_m)[1]
 
@@ -414,23 +413,19 @@ try:
             else:
                 current_day = 0
 
-            # ----------------- ВИПРАВЛЕНИЙ БЛОК (З ВРАХУВАННЯМ НЕВЕРИФІКОВАНИХ БАЛІВ) -----------------
-# total_for_forecast враховує і поточні бали, і бали на верифікації
-    total_for_forecast = u_total_pts + u_pending_pts
+            total_for_forecast = u_total_pts + u_pending_pts
 
-    if current_day >= days_in_month:
-    # Якщо місяць завершено — прогноз дорівнює усім набраним балам (підтверджені + на верифікації)
-        forecast = int(total_for_forecast)
-        remaining_to_forecast = int(u_pending_pts)
-    elif current_day > 0:
-    # Якщо місяць триває — розраховуємо середньодобовий темп з урахуванням балів на верифікації
-        daily_avg = total_for_forecast / current_day
-        forecast = int(daily_avg * days_in_month)
-        remaining_to_forecast = forecast - u_total_pts
-    else:
-        forecast = 0
-        remaining_to_forecast = 0
-            # ===================================================
+            if current_day >= days_in_month:
+                forecast = int(total_for_forecast)
+                remaining_to_forecast = int(u_pending_pts)
+            elif current_day > 0:
+                daily_avg = total_for_forecast / current_day
+                forecast = int(daily_avg * days_in_month)
+                remaining_to_forecast = forecast - u_total_pts
+            else:
+                forecast = 0
+                remaining_to_forecast = 0
+            # =============================================================
 
             col1, col2, col3 = st.columns(3)
             with col1:
