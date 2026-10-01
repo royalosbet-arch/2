@@ -411,12 +411,12 @@ try:
     with col2: st.metric(label="📈 Прогноз на кінець місяця", value=forecast, delta=f"+{remaining_to_forecast} до прогнозу", delta_color="normal")
     with col3: st.metric(label="📅 Днів пройдено", value=current_day, delta=f"всього {days_in_month}", delta_color="off")
             
-            st.markdown("<br>", unsafe_allow_html=True)
-            u_table = []
-            for t in sorted(list(set([r["T"] for r in u_res]))):
-                u_table.append({
-                    "Тип цілі": t, "Всього (шт)": int(sum(r["QT"] for r in u_res if r["T"] == t)),
-                    "Верифіковано (шт)": int(sum(r["QV"] for r in u_res if r["T"] == t)),
+        st.markdown("<br>", unsafe_allow_html=True)
+        u_table = []
+    for t in sorted(list(set([r["T"] for r in u_res]))):
+        u_table.append({
+            "Тип цілі": t, "Всього (шт)": int(sum(r["QT"] for r in u_res if r["T"] == t)),
+            "Верифіковано (шт)": int(sum(r["QV"] for r in u_res if r["T"] == t)),
                     "Не верифіковано (шт)": int(sum(r["QUN"] for r in u_res if r["T"] == t)),
                     "На верифікації (шт)": int(sum(r["QPE"] for r in u_res if r["T"] == t)),
                     "Бали": int(sum(r["PU"] + r["PM"] for r in u_res if r["T"] == t))
