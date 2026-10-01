@@ -423,34 +423,34 @@ try:
         })
             
      if u_table:
-            df_report = pd.DataFrame(u_table).sort_values(by="Бали", ascending=False)
-            def style_report_cells(val, column_name):
-                if isinstance(val, (int, float)) and val == 0: return 'color: #555555; font-weight: normal;'
-                if column_name == "Верифіковано (шт)": return 'color: #2ECC71; font-weight: bold;'
-                elif column_name == "Не верифіковано (шт)": return 'color: #E74C3C; font-weight: bold;'
-                elif column_name == "На верифікації (шт)": return 'color: #95A5A6; font-weight: bold;'
-                return 'color: white;'
+        df_report = pd.DataFrame(u_table).sort_values(by="Бали", ascending=False)
+        def style_report_cells(val, column_name):
+            if isinstance(val, (int, float)) and val == 0: return 'color: #555555; font-weight: normal;'
+            if column_name == "Верифіковано (шт)": return 'color: #2ECC71; font-weight: bold;'
+            elif column_name == "Не верифіковано (шт)": return 'color: #E74C3C; font-weight: bold;'
+            elif column_name == "На верифікації (шт)": return 'color: #95A5A6; font-weight: bold;'
+            return 'color: white;'
                 
-            styled_df = df_report.style.map(lambda v: style_report_cells(v, "Верифіковано (шт)"), subset=["Верифіковано (шт)"]).map(lambda v: style_report_cells(v, "Не верифіковано (шт)"), subset=["Не верифіковано (шт)"]).map(lambda v: style_report_cells(v, "На верифікації (шт)"), subset=["На верифікації (шт)"]).map(lambda v: 'color: #555555;' if (isinstance(v, (int, float)) and v == 0) else 'color: white;', subset=["Всього (шт)", "Бали"])
-            st.dataframe(styled_df, use_container_width=True, hide_index=True)
+        styled_df = df_report.style.map(lambda v: style_report_cells(v, "Верифіковано (шт)"), subset=["Верифіковано (шт)"]).map(lambda v: style_report_cells(v, "Не верифіковано (шт)"), subset=["Не верифіковано (шт)"]).map(lambda v: style_report_cells(v, "На верифікації (шт)"), subset=["На верифікації (шт)"]).map(lambda v: 'color: #555555;' if (isinstance(v, (int, float)) and v == 0) else 'color: white;', subset=["Всього (шт)", "Бали"])
+        st.dataframe(styled_df, use_container_width=True, hide_index=True)
                 
-            csv_data = df_report.to_csv(index=False).encode('utf-8')
-            st.download_button("📥 Експортувати звіт (CSV)", csv_data, file_name=f"звіт_{sel_b}_{sel_report_month}.csv", mime="text/csv")
+        csv_data = df_report.to_csv(index=False).encode('utf-8')
+        st.download_button("📥 Експортувати звіт (CSV)", csv_data, file_name=f"звіт_{sel_b}_{sel_report_month}.csv", mime="text/csv")
                 
-            unverified_records = [r for r in u_res if r["QUN"] > 0]
-            st.markdown("<br>", unsafe_allow_html=True)
-            with st.expander("🔍 Переглянути деталі та причини щодо не верифікованих об'єктів"):
-                if unverified_records:
-                    has_reasons = False
-                    for item in unverified_records:
-                        date_str = item["D"].strftime("%d.%m.%Y")
-                        if item["Reason"]:
-                            has_reasons = True
-                            st.markdown(f"• **{date_str}** — *{item['T']}* ({int(item['QUN'])} шт) — <span style='color:#E74C3C; font-weight:600;'>Причина: {item['Reason']}</span>", unsafe_allow_html=True)
-                        else:
-                            st.markdown(f"• **{date_str}** — *{item['T']}* ({int(item['QUN'])} шт) — <span style='color:#95A5A6;'>Причину не вказано в Google Sheets</span>", unsafe_allow_html=True)
+        unverified_records = [r for r in u_res if r["QUN"] > 0]
+        st.markdown("<br>", unsafe_allow_html=True)
+        with st.expander("🔍 Переглянути деталі та причини щодо не верифікованих об'єктів"):
+            if unverified_records:
+                has_reasons = False
+                for item in unverified_records:
+                    date_str = item["D"].strftime("%d.%m.%Y")
+                    if item["Reason"]:
+                        has_reasons = True
+                        st.markdown(f"• **{date_str}** — *{item['T']}* ({int(item['QUN'])} шт) — <span style='color:#E74C3C; font-weight:600;'>Причина: {item['Reason']}</span>", unsafe_allow_html=True)
+                    else:
+                        st.markdown(f"• **{date_str}** — *{item['T']}* ({int(item['QUN'])} шт) — <span style='color:#95A5A6;'>Причину не вказано в Google Sheets</span>", unsafe_allow_html=True)
                     if not has_reasons:
-                            st.info("ℹ️ У таблиці знайдено не верифіковані об'єкти, але жодного опису чи причини для них не додано.")
+                        st.info("ℹ️ У таблиці знайдено не верифіковані об'єкти, але жодного опису чи причини для них не додано.")
                  else:
                      st.success("✅ У цього підрозділу за обраний період немає жодного не верифікованого об'єкта.")
         else:
