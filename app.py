@@ -620,137 +620,199 @@ try:
         else:
             st.info("ℹ️ Дані складу відсутні. Перевірте аркуш 'Склад 1аемб' в Google Sheets.")
 
-    elif category == "📡 Облік розвідки":
-        st.markdown(f"<h2 style='text-align:center; color:#ffd700; text-shadow: 2px 2px 8px rgba(0,0,0,0.95); font-weight: 800; letter-spacing: 1px;'>📡 ОБЛІК МАЙНА РОЗВІДКИ</h2>", unsafe_allow_html=True)
+elif category == "📡 Облік розвідки":
+    st.markdown(f"<h2 style='text-align:center; color:#ffd700; text-shadow: 2px 2px 8px rgba(0,0,0,0.95); font-weight: 800; letter-spacing: 1px;'>📡 ОБЛІК МАЙНА РОЗВІДКИ</h2>", unsafe_allow_html=True)
+    
+    # --- БЛОК 1: ДОДАВАННЯ НОВОГО ЗВІТУ ---
+    st.markdown("#### ➕ Додати новий звіт")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        position = st.selectbox("📍 Оберіть позицію:", ["Кіпер", "Мазай", "Прогрес", "Потужний"], key="pos_input")
+    with col2:
+        report_time = st.radio("⏰ Час звіту:", ["Ранок", "Вечір"], horizontal=True)
+    with col3:
+        report_date = st.date_input("📅 Дата звіту:", value=datetime.now())
+    
+    raw_text = st.text_area(
+        "Вставте текст звіту з WhatsApp:", 
+        height=200, 
+        placeholder="Matrice 4T - 1\nMatrice 4E - 1\n5s - 5\nЕлемент живлення Matrice 4 -10\n5s посилена (легка) -4+3\nСистеми скиду 5( 2 не працюють)\nМасло генератора -1.4л",
+        key="raw_text_input"
+    )
+    
+    if raw_text:
+        date_from_text = None
+        date_pattern_1 = re.search(r'(\d{1,2})\.(\d{1,2})\.(\d{2,4})', raw_text)
+        if date_pattern_1:
+            day, month, year = date_pattern_1.groups()
+            year = int(year) if len(year) == 4 else int(year) + 2000
+            try:
+                date_from_text = datetime(int(year), int(month), int(day)).date()
+            except:
+                pass
         
-        # --- БЛОК 1: ДОДАВАННЯ НОВОГО ЗВІТУ ---
-        st.markdown("#### ➕ Додати новий звіт")
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            position = st.selectbox("📍 Оберіть позицію:", ["Кіпер", "Мазай", "Прогрес", "Потужний"], key="pos_input")
-        with col2:
-            report_time = st.radio("⏰ Час звіту:", ["Ранок", "Вечір"], horizontal=True)
-        with col3:
-            report_date = st.date_input("📅 Дата звіту:", value=datetime.now())
-        
-        raw_text = st.text_area(
-            "Вставте текст звіту з WhatsApp:", 
-            height=200, 
-            placeholder="Matrice 4T - 1\nMatrice 4E - 1\n5s - 5\nЕлемент живлення Matrice 4 -10\n5s посилена (легка) -4+3\nСистеми скиду 5( 2 не працюють)\nМасло генератора -1.4л",
-            key="raw_text_input"
-        )
-        
-        if raw_text:
-            # Автопарсинг дати з тексту
-            date_from_text = None
-            date_pattern_1 = re.search(r'(\d{1,2})\.(\d{1,2})\.(\d{2,4})', raw_text)
-            if date_pattern_1:
-                day, month, year = date_pattern_1.groups()
-                year = int(year) if len(year) == 4 else int(year) + 2000
+        months_dict = {'січня': 1, 'лютого': 2, 'березня': 3, 'квітня': 4, 'травня': 5, 'червня': 6,
+                       'липня': 7, 'серпня': 8, 'вересня': 9, 'жовтня': 10, 'листопада': 11, 'грудня': 12}
+        date_pattern_2 = re.search(r'(\d{1,2})\s+([а-яіїєґ]+)', raw_text, re.IGNORECASE)
+        if date_pattern_2 and not date_from_text:
+            day, month_name = date_pattern_2.groups()
+            month_lower = month_name.lower()
+            if month_lower in months_dict:
                 try:
-                    date_from_text = datetime(int(year), int(month), int(day)).date()
+                    date_from_text = datetime(datetime.now().year, months_dict[month_lower], int(day)).date()
                 except:
                     pass
-            
-            months_dict = {'січня': 1, 'лютого': 2, 'березня': 3, 'квітня': 4, 'травня': 5, 'червня': 6,
-                           'липня': 7, 'серпня': 8, 'вересня': 9, 'жовтня': 10, 'листопада': 11, 'грудня': 12}
-            date_pattern_2 = re.search(r'(\d{1,2})\s+([а-яіїєґ]+)', raw_text, re.IGNORECASE)
-            if date_pattern_2 and not date_from_text:
-                day, month_name = date_pattern_2.groups()
-                month_lower = month_name.lower()
-                if month_lower in months_dict:
-                    try:
-                        date_from_text = datetime(datetime.now().year, months_dict[month_lower], int(day)).date()
-                    except:
-                        pass
-            
-            if date_from_text:
-                report_date = date_from_text
-                st.info(f"📅 Автоматично розпізнано дату з тексту: **{date_from_text.strftime('%d.%m.%Y')}**")
-            
-            parsed_data = parse_recon_report(raw_text)
-            if parsed_data:
-                st.success(f"✅ Розпізнано {len(parsed_data)} позицій!")
-                df_preview = pd.DataFrame(parsed_data)
-                
-                if st.button("💾 Зберегти в Google Sheets", type="primary"):
-                    try:
-                        sheet_name = "Розвідка_Звіти"
-                        try:
-                            df_existing = conn.read(worksheet=sheet_name, ttl=10).fillna("")
-                            existing_records = df_existing.to_dict('records')
-                        except:
-                            existing_records = []
-                        
-                        date_str = report_date.strftime("%d.%m.%Y")
-                        time_str = "08:00" if report_time == "Ранок" else "20:00"
-                        
-                        new_records = []
-                        for _, row in df_preview.iterrows():
-                            new_records.append({
-                                "Дата": date_str,
-                                "Час": time_str,
-                                "Позиція": position,
-                                "Предмет": str(row["Предмет"]).strip(),
-                                "Кількість": float(row["Кількість"]),
-                                "Примітка": str(row["Примітка"]).strip()
-                            })
-                        
-                        all_records = existing_records + new_records
-                        df_to_save = pd.DataFrame(all_records)
-                        conn.update(worksheet=sheet_name, data=df_to_save)
-                        
-                        st.success("✅ Дані успішно збережено!")
-                        st.balloons()
-                        st.rerun() # Оновити сторінку, щоб одразу показати нові дані в історії
-                    except Exception as e:
-                        st.error(f"❌ Помилка збереження: {e}")
-            else:
-                st.warning("⚠️ Не вдалося розпізнати дані. Перевірте формат тексту.")
-
-        # --- БЛОК 2: ПЕРЕГЛЯД ІСТОРІЇ ---
-        st.markdown("---")
-        st.markdown("#### 📜 Історія звітів та поточний стан")
         
-        try:
-            df_history = conn.read(worksheet="Розвідка_Звіти", ttl=60).fillna("")
+        if date_from_text:
+            report_date = date_from_text
+            st.info(f"📅 Автоматично розпізнано дату з тексту: **{date_from_text.strftime('%d.%m.%Y')}**")
+        
+        parsed_data = parse_recon_report(raw_text)
+        if parsed_data:
+            st.success(f"✅ Розпізнано {len(parsed_data)} позицій!")
+            df_preview = pd.DataFrame(parsed_data)
             
-            if not df_history.empty and len(df_history) > 1:
-                df_history['Дата'] = pd.to_datetime(df_history['Дата'], dayfirst=True, errors='coerce')
-                df_history = df_history.dropna(subset=['Дата'])
-                df_history = df_history.sort_values(by=['Позиція', 'Дата', 'Час'], ascending=[True, False, False])
-                df_history['Дата'] = df_history['Дата'].dt.strftime('%d.%m.%Y')
+            if st.button(" Зберегти в Google Sheets", type="primary"):
+                try:
+                    sheet_name = "Розвідка_Звіти"
+                    try:
+                        df_existing = conn.read(worksheet=sheet_name, ttl=10).fillna("")
+                        existing_records = df_existing.to_dict('records')
+                    except:
+                        existing_records = []
+                    
+                    date_str = report_date.strftime("%d.%m.%Y")
+                    time_str = "08:00" if report_time == "Ранок" else "20:00"
+                    
+                    new_records = []
+                    for _, row in df_preview.iterrows():
+                        new_records.append({
+                            "Дата": date_str,
+                            "Час": time_str,
+                            "Позиція": position,
+                            "Предмет": str(row["Предмет"]).strip(),
+                            "Кількість": float(row["Кількість"]),
+                            "Примітка": str(row["Примітка"]).strip()
+                        })
+                    
+                    all_records = existing_records + new_records
+                    df_to_save = pd.DataFrame(all_records)
+                    conn.update(worksheet=sheet_name, data=df_to_save)
+                    
+                    st.success("✅ Дані успішно збережено!")
+                    st.balloons()
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Помилка збереження: {e}")
+        else:
+            st.warning("️ Не вдалося розпізнати дані. Перевірте формат тексту.")
+
+    # --- БЛОК 2: ПЕРЕГЛЯД ІСТОРІЇ (КОМПАКТНИЙ) ---
+    st.markdown("---")
+    st.markdown("#### 📜 Історія звітів")
+    
+    try:
+        df_history = conn.read(worksheet="Розвідка_Звіти", ttl=60).fillna("")
+        
+        if not df_history.empty and len(df_history) > 1:
+            df_history['Дата'] = pd.to_datetime(df_history['Дата'], dayfirst=True, errors='coerce')
+            df_history = df_history.dropna(subset=['Дата'])
+            df_history = df_history.sort_values(by=['Позиція', 'Дата', 'Час'], ascending=[True, False, False])
+            
+            # Фільтри
+            col_f1, col_f2 = st.columns(2)
+            with col_f1:
+                view_position = st.selectbox("📍 Позиція:", ["Всі позиції", "Кіпер", "Мазай", "Прогрес", "Потужний"], key="pos_view")
+            with col_f2:
+                # Отримуємо унікальні дати
+                available_dates = sorted(df_history['Дата'].dt.date.unique(), reverse=True)
+                date_options = ["Всі дати"] + [d.strftime("%d.%m.%Y") for d in available_dates]
+                selected_date = st.selectbox("📅 Дата:", date_options)
+            
+            # Фільтрація
+            df_filtered = df_history.copy()
+            if view_position != "Всі позиції":
+                df_filtered = df_filtered[df_filtered["Позиція"] == view_position]
+            if selected_date != "Всі дати":
+                sel_date_obj = datetime.strptime(selected_date, "%d.%m.%Y").date()
+                df_filtered = df_filtered[df_filtered['Дата'].dt.date == sel_date_obj]
+            
+            if not df_filtered.empty:
+                # Показуємо останню дату
+                latest_date = df_filtered['Дата'].max().strftime("%d.%m.%Y")
+                st.info(f"📅 Показано звіти за **{latest_date}**")
                 
-                view_position = st.selectbox("📍 Фільтр по позиції:", ["Всі позиції", "Кіпер", "Мазай", "Прогрес", "Потужний"], key="pos_view")
+                # Групуємо по позиціях та часах для компактного відображення
+                df_display = df_filtered.copy()
+                df_display['Дата'] = df_display['Дата'].dt.strftime('%d.%m.%Y')
                 
-                if view_position != "Всі позиції":
-                    df_filtered = df_history[df_history["Позиція"] == view_position].copy()
-                else:
-                    df_filtered = df_history.copy()
-                
-                if not df_filtered.empty:
-                    latest_date = df_filtered['Дата'].iloc[0]
-                    st.info(f"📅 Останній звіт для **'{view_position}'**: {latest_date}")
-                
+                # Показуємо таблицю без дублювання дати
+                cols_to_show = ["Час", "Позиція", "Предмет", "Кількість", "Примітка"]
                 st.dataframe(
-                    df_filtered[["Дата", "Час", "Позиція", "Предмет", "Кількість", "Примітка"]],
+                    df_display[cols_to_show],
                     use_container_width=True,
                     hide_index=True
                 )
                 
+                # Кнопка експорту
                 csv_hist = df_filtered.to_csv(index=False, encoding='utf-8-sig').encode('utf-8')
                 st.download_button(
-                    "📥 Експортувати історію (CSV)", 
+                    " Експортувати повну історію (CSV)", 
                     csv_hist, 
                     file_name=f"історія_розвідки_{view_position.replace(' ', '_')}.csv", 
                     mime="text/csv"
                 )
-            else:
-                st.info("ℹ️ Історія звітів поки що порожня. Додайте перший звіт у формі вище.")
                 
-        except Exception as e:
-            st.warning(f"⚠️ Не вдалося завантажити історію. Переконайтеся, що аркуш 'Розвідка_Звіти' існує і має заголовки. Деталі: {e}")
-
+                # ПОКАЗ ЗМІН (порівняння ранок/вечір)
+                if selected_date != "Всі дати" and view_position != "Всі позиції":
+                    st.markdown("---")
+                    st.markdown("#### 📊 Зміни за день")
+                    
+                    morning_data = df_filtered[(df_filtered['Час'] == '08:00') | (df_filtered['Час'] == 'Ранок')]
+                    evening_data = df_filtered[(df_filtered['Час'] == '20:00') | (df_filtered['Час'] == 'Вечір')]
+                    
+                    if not morning_data.empty and not evening_data.empty:
+                        # Створюємо порівняльну таблицю
+                        comparison_data = []
+                        all_items = set(morning_data['Предмет'].tolist() + evening_data['Предмет'].tolist())
+                        
+                        for item in all_items:
+                            morning_qty = morning_data[morning_data['Предмет'] == item]['Кількість'].values
+                            evening_qty = evening_data[evening_data['Предмет'] == item]['Кількість'].values
+                            
+                            m_qty = morning_qty[0] if len(morning_qty) > 0 else 0
+                            e_qty = evening_qty[0] if len(evening_qty) > 0 else 0
+                            diff = e_qty - m_qty
+                            
+                            comparison_data.append({
+                                "Предмет": item,
+                                "Ранок": m_qty,
+                                "Вечір": e_qty,
+                                "Зміна": diff
+                            })
+                        
+                        df_comp = pd.DataFrame(comparison_data).sort_values(by="Предмет")
+                        
+                        # Стилізація змін
+                        def color_change(val):
+                            if val > 0:
+                                return 'color: #2ECC71; font-weight: bold;'  # зелений (додано)
+                            elif val < 0:
+                                return 'color: #E74C3C; font-weight: bold;'  # червоний (витрачено)
+                            else:
+                                return 'color: #95A5A6;'  # сірий (без змін)
+                        
+                        styled_comp = df_comp.style.map(color_change, subset=["Зміна"])
+                        st.dataframe(styled_comp, use_container_width=True, hide_index=True)
+                    else:
+                        st.info("ℹ️ Для порівняння потрібні звіти і за ранок, і за вечір")
+            else:
+                st.info("ℹ️ За обраними фільтрами даних немає")
+        else:
+            st.info("ℹ️ Історія звітів поки що порожня. Додайте перший звіт у формі вище.")
+            
+    except Exception as e:
+        st.warning(f"⚠️ Не вдалося завантажити історію. Переконайтеся, що аркуш 'Розвідка_Звіти' існує. Деталі: {e}")
     elif category == "📊 Дашборд":
         sel_month = st.selectbox("ОБЕРІТЬ МІСЯЦЬ:", AVAILABLE_MONTHS)
         prefix = sel_month.split(".")[0]
