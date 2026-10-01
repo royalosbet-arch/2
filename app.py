@@ -371,45 +371,45 @@ try:
         
         all_results, _ = parse_battalion_data(conn, unit_names, prefix, cur_m, cur_y)
         
-        if not all_results:
-            st.warning("⚠️ Дані не завантажені з Google Sheets. Перевірте назви аркушів та наявність даних.")
-        else:
-            filtered = [r for r in all_results if r["D"].month == cur_m and r["D"].year == cur_y]
+    if not all_results:
+        st.warning("⚠️ Дані не завантажені з Google Sheets. Перевірте назви аркушів та наявність даних.")
+    else:
+        filtered = [r for r in all_results if r["D"].month == cur_m and r["D"].year == cur_y]
         
-        if not filtered:
-            st.warning(f"⚠️ Дані завантажені, але не відповідають обраному періоду {cur_m}/{cur_y}.")
-        else:
-            st.markdown("---")
-            sel_b = st.selectbox("ДЕТАЛІЗАЦІЯ ПІДРОЗДІЛУ:", unit_names)
-            u_res = [r for r in filtered if r["B"] == sel_b]
-            u_total_pts = int(sum(r["PU"] + r["PM"] for r in u_res))
-            u_pending_pts = int(sum(r.get("PPE", 0.0) for r in u_res))
+    if not filtered:
+        st.warning(f"⚠️ Дані завантажені, але не відповідають обраному періоду {cur_m}/{cur_y}.")
+    else:
+        st.markdown("---")
+        sel_b = st.selectbox("ДЕТАЛІЗАЦІЯ ПІДРОЗДІЛУ:", unit_names)
+        u_res = [r for r in filtered if r["B"] == sel_b]
+        u_total_pts = int(sum(r["PU"] + r["PM"] for r in u_res))
+        u_pending_pts = int(sum(r.get("PPE", 0.0) for r in u_res))
             
-            now = datetime.now()
-            days_in_month = calendar.monthrange(cur_y, cur_m)[1]
-            if (cur_y < now.year) or (cur_y == now.year and cur_m < now.month):
-                current_day = days_in_month
-            elif cur_y == now.year and cur_m == now.month:
-                current_day = now.day
-            else:
-                current_day = 0
+        now = datetime.now()
+        days_in_month = calendar.monthrange(cur_y, cur_m)[1]
+    if (cur_y < now.year) or (cur_y == now.year and cur_m < now.month):
+        current_day = days_in_month
+    elif cur_y == now.year and cur_m == now.month:
+        current_day = now.day
+    else:
+        current_day = 0
             
-            total_for_forecast = u_total_pts + u_pending_pts
-            if current_day >= days_in_month:
-                forecast = total_for_forecast
-                remaining_to_forecast = u_pending_pts
-            elif current_day > 0:
-                daily_avg = total_for_forecast / current_day
-                forecast = int(daily_avg * days_in_month)
-                remaining_to_forecast = forecast - u_total_pts
-            else:
-                forecast = 0
-                remaining_to_forecast = 0
+        total_for_forecast = u_total_pts + u_pending_pts
+    if current_day >= days_in_month:
+        forecast = total_for_forecast
+        remaining_to_forecast = u_pending_pts
+    elif current_day > 0:
+        daily_avg = total_for_forecast / current_day
+        forecast = int(daily_avg * days_in_month)
+        remaining_to_forecast = forecast - u_total_pts
+    else:
+        forecast = 0
+        remaining_to_forecast = 0
             
-            col1, col2, col3 = st.columns(3)
-            with col1: st.metric(label="💰 Поточні бали", value=u_total_pts)
-            with col2: st.metric(label="📈 Прогноз на кінець місяця", value=forecast, delta=f"+{remaining_to_forecast} до прогнозу", delta_color="normal")
-            with col3: st.metric(label="📅 Днів пройдено", value=current_day, delta=f"всього {days_in_month}", delta_color="off")
+        col1, col2, col3 = st.columns(3)
+    with col1: st.metric(label="💰 Поточні бали", value=u_total_pts)
+    with col2: st.metric(label="📈 Прогноз на кінець місяця", value=forecast, delta=f"+{remaining_to_forecast} до прогнозу", delta_color="normal")
+    with col3: st.metric(label="📅 Днів пройдено", value=current_day, delta=f"всього {days_in_month}", delta_color="off")
             
             st.markdown("<br>", unsafe_allow_html=True)
             u_table = []
