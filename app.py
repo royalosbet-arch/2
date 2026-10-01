@@ -372,9 +372,9 @@ try:
         all_results, _ = parse_battalion_data(conn, unit_names, prefix, cur_m, cur_y)
         
         if not all_results:
-        st.warning("⚠️ Дані не завантажені з Google Sheets. Перевірте назви аркушів та наявність даних.")
-    else:
-        filtered = [r for r in all_results if r["D"].month == cur_m and r["D"].year == cur_y]
+            st.warning("⚠️ Дані не завантажені з Google Sheets. Перевірте назви аркушів та наявність даних.")
+        else:
+            filtered = [r for r in all_results if r["D"].month == cur_m and r["D"].year == cur_y]
         
         if not filtered:
             st.warning(f"⚠️ Дані завантажені, але не відповідають обраному періоду {cur_m}/{cur_y}.")
