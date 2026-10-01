@@ -359,18 +359,38 @@ unit_names = ["1аемб", "2аемб", "3аемб", "4аемб"]
 
 try:
     if category == "️ Бригадні звіти":
-        sel_report_month = st.selectbox("ОБЕРІТЬ МІСЯЦЬ ДЛЯ ПЕРЕГЛЯДУ ЗВІТУ:", AVAILABLE_MONTHS)
-        prefix = sel_report_month.split(".")[0]
-        cur_m = int(prefix)
-        cur_y = int(sel_report_month.split(".")[1])
+    sel_report_month = st.selectbox("ОБЕРІТЬ МІСЯЦЬ ДЛЯ ПЕРЕГЛЯДУ ЗВІТУ:", AVAILABLE_MONTHS)
+    prefix = sel_report_month.split(".")[0]
+    cur_m = int(prefix)
+    cur_y = int(sel_report_month.split(".")[1])
+    
+    st.markdown(f"<h2 style='text-align:center; color:#ffd700; text-shadow: 2px 2px 8px rgba(0,0,0,0.95); font-weight: 800; letter-spacing: 1px;'>️ ЗАГАЛЬНОБРИГАДНИЙ МОНІТОРИНГ {sel_report_month} </h2>", unsafe_allow_html=True)
+    now_str = datetime.now().strftime("%d.%m.%Y о %H:%M")
+    st.markdown(f"<p style='text-align:center; color:#00E676; font-size: 15px; margin-top: -10px; margin-bottom: 25px; font-weight: 700;'>🕒 Дані оновлені на: {now_str}</p>", unsafe_allow_html=True)
+    
+    # Відладочна інформація
+    st.info(f"🔍 Обраний період: місяць {cur_m}, рік {cur_y}")
+    
+    all_results, _ = parse_battalion_data(conn, unit_names, prefix, cur_m, cur_y)
+    
+    # Перевірка: чи є дані взагалі
+    if not all_results:
+        st.warning(f"⚠️ Дані не завантажені з Google Sheets. Перевірте:")
+        st.markdown("1. Чи існують аркуші з назвами типу `09.1аемб`, `09.2аемб` і т.д.")
+        st.markdown("2. Чи є дані в цих аркушах")
+        st.markdown("3. Чи правильно вказані дати в першій колонці")
+    else:
+        st.success(f"✅ Завантажено {len(all_results)} записів з Google Sheets")
         
-        st.markdown(f"<h2 style='text-align:center; color:#ffd700; text-shadow: 2px 2px 8px rgba(0,0,0,0.95); font-weight: 800; letter-spacing: 1px;'>️ ЗАГАЛЬНОБРИГАДНИЙ МОНІТОРИНГ {sel_report_month} </h2>", unsafe_allow_html=True)
-        now_str = datetime.now().strftime("%d.%m.%Y о %H:%M")
-        st.markdown(f"<p style='text-align:center; color:#00E676; font-size: 15px; margin-top: -10px; margin-bottom: 25px; font-weight: 700;'>🕒 Дані оновлені на: {now_str}</p>", unsafe_allow_html=True)
+        # Перевірка: чи проходять дані фільтр по місяцю
+        filtered = [r for r in all_results if r["D"].month == cur_m and r["D"].year == cur_y]
         
-        all_results, _ = parse_battalion_data(conn, unit_names, prefix, cur_m, cur_y)
-        if all_results:
-            filtered = [r for r in all_results if r["D"].month == cur_m and r["D"].year == cur_y]
+        if not filtered:
+            st.warning(f"️ Дані завантажені ({len(all_results)} записів), але не проходять фільтр по місяцю {cur_m}/{cur_y}")
+            # Показати які дати є в даних
+            unique_dates = sorted(set(r["D"].strftime("%d.%m.%Y") for r in all_results))
+            st.markdown(f"**Дати в даних:** {', '.join(unique_dates[:10])}{'...' if len(unique_dates) > 10 else ''}")
+        else:
             st.markdown("---")
             sel_b = st.selectbox("ДЕТАЛІЗАЦІЯ ПІДРОЗДІЛУ:", unit_names)
             u_res = [r for r in filtered if r["B"] == sel_b]
@@ -400,7 +420,7 @@ try:
             
             col1, col2, col3 = st.columns(3)
             with col1: st.metric(label="💰 Поточні бали", value=u_total_pts)
-            with col2: st.metric(label=" Прогноз на кінець місяця", value=forecast, delta=f"+{remaining_to_forecast} до прогнозу", delta_color="normal")
+            with col2: st.metric(label="📈 Прогноз на кінець місяця", value=forecast, delta=f"+{remaining_to_forecast} до прогнозу", delta_color="normal")
             with col3: st.metric(label="📅 Днів пройдено", value=current_day, delta=f"всього {days_in_month}", delta_color="off")
             
             st.markdown("<br>", unsafe_allow_html=True)
@@ -445,7 +465,8 @@ try:
                             st.info("ℹ️ У таблиці знайдено не верифіковані об'єкти, але жодного опису чи причини для них не додано.")
                     else:
                         st.success("✅ У цього підрозділу за обраний період немає жодного не верифікованого об'єкта.")
-
+            else:
+                st.info(f"️ Для підрозділу {sel_b} немає даних за обраний період.")
     elif category == "🔥 Ураження":
         sel_ur = st.selectbox("ОБЕРІТЬ ПЕРІОД ДЛЯ АНАЛІТИКИ:", AVAILABLE_MONTHS)
         prefix = sel_ur.split(".")[0]
