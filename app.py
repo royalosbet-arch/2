@@ -422,7 +422,7 @@ try:
             "Бали": int(sum(r["PU"] + r["PM"] for r in u_res if r["T"] == t))
         })
             
-     if u_table:
+    if u_table:
         df_report = pd.DataFrame(u_table).sort_values(by="Бали", ascending=False)
         def style_report_cells(val, column_name):
             if isinstance(val, (int, float)) and val == 0: return 'color: #555555; font-weight: normal;'
